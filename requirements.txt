@@ -1,0 +1,9 @@
+osmnx>=1.9.0
+overpy>=0.7
+geopandas>=0.14.0
+shapely>=2.0.0
+pandas>=2.0.0
+requests>=2.31.0
+openpyxl>=3.1.0
+polyline>=2.0.0
+tqdm>=4.66.0

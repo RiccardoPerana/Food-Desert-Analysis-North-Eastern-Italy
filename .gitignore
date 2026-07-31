@@ -1,0 +1,15 @@
+# Python environment
+venv/
+__pycache__/
+*.pyc
+
+# Large/generated data files -- not meant for version control
+data/
+output/
+*.osm.pbf
+*.osrm*
+
+# OS/editor clutter
+.vscode/
+.DS_Store
+Thumbs.db

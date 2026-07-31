@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Food Desert Map</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+  :root {
+    --ink: #1c2a24;
+    --paper: #f6f4ee;
+    --accent: #b5502f;
+    --line: #d8d3c5;
+    --panel: #ffffff;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; font-family: "Segoe UI", system-ui, sans-serif; color: var(--ink); }
+  #map { position: absolute; top: 0; left: 0; right: 0; bottom: 0; }
+
+  #controls {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    z-index: 1000;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 14px 16px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.12);
+    min-width: 220px;
+  }
+  #controls h3 {
+    margin: 0 0 10px 0;
+    font-size: 14px;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: var(--ink);
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 8px;
+  }
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    font-size: 13px;
+  }
+  .toggle-btn {
+    border: 1px solid var(--line);
+    background: var(--paper);
+    border-radius: 6px;
+    padding: 5px 10px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.15s ease;
+  }
+  .toggle-btn.active {
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
+  }
+  #legend {
+    position: absolute;
+    bottom: 24px;
+    left: 16px;
+    z-index: 1000;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-size: 12px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.12);
+  }
+  .legend-dot {
+    display: inline-block;
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    margin-right: 6px;
+    vertical-align: middle;
+  }
+  .popup-title { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+  .popup-row { font-size: 13px; margin: 2px 0; }
+  .popup-row span { color: #6b6558; }
+</style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<div id="controls">
+  <h3>Layers</h3>
+  <div class="toggle-row">
+    <span>Urban public transport</span>
+    <button id="btn-transit" class="toggle-btn">Show</button>
+  </div>
+  <div class="toggle-row">
+    <span>Cycling lanes</span>
+    <button id="btn-cycling" class="toggle-btn">Show</button>
+  </div>
+</div>
+
+<div id="legend">
+  <span class="legend-dot" style="background:#b5502f"></span> Underserved town (matches all 3 criteria)
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+// ---------------------------------------------------------------------
+// DATA SOURCES
+// These paths point to the GeoJSON files produced by pipeline.py and
+// fetch_map_layers.py. Regenerate those files, then just refresh this page.
+// ---------------------------------------------------------------------
+const TOWNS_GEOJSON_URL      = "/output/towns.geojson?_=" + Date.now();
+const ROUTES_GEOJSON_URL     = "/output/routes.geojson?_=" + Date.now();
+const CYCLING_GEOJSON_URL    = "/output/cycling_lanes.geojson?_=" + Date.now();
+const TRANSIT_GEOJSON_URL    = "/output/public_transport.geojson?_=" + Date.now();
+
+// ---------------------------------------------------------------------
+// MAP INITIALIZATION
+// ---------------------------------------------------------------------
+// Roughly covers Veneto, Trentino-Alto Adige, and Friuli-Venezia Giulia --
+// the user can't pan the map outside this box. Widen these corners if you
+// want more of Emilia-Romagna or Lombardy included too.
+const NE_ITALY_BOUNDS = L.latLngBounds(
+  [44.3, 9.8],   // southwest corner
+  [47.3, 14.0]   // northeast corner
+);
+
+const map = L.map('map', {
+  zoomControl: true,
+  minZoom: 8,
+  maxBounds: NE_ITALY_BOUNDS,
+  maxBoundsViscosity: 1.0  // 1.0 = a solid wall at the edge; 0 = a soft, elastic bounce-back
+}).setView([45.4064, 11.8768], 10); // Padova province default; // Padova province default
+L.tileLayer('https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', {
+  maxZoom: 19,
+  attribution: '&copy; OpenStreetMap contributors, Tiles style by <a href="https://www.hotosm.org/">Humanitarian OpenStreetMap Team</a>'
+}).addTo(map);
+
+// Layer groups -- kept separate so each button toggles independently
+const transitLayer = L.layerGroup();
+const cyclingLayer = L.layerGroup();
+const townsLayer = L.layerGroup().addTo(map);
+
+// Cycling lanes overlap into a solid mass at low zoom no matter how thin
+// the lines are drawn -- so instead of trying to scale line weight with
+// zoom, we simply don't render the layer at all below this zoom level.
+const CYCLING_MIN_ZOOM = 14;
+let cyclingEnabled = false; // tracks the user's toggle choice, independent of zoom
+
+function updateCyclingVisibility() {
+  const shouldShow = cyclingEnabled && map.getZoom() >= CYCLING_MIN_ZOOM;
+  const isCurrentlyShown = map.hasLayer(cyclingLayer);
+
+  if (shouldShow && !isCurrentlyShown) {
+    cyclingLayer.addTo(map);
+  } else if (!shouldShow && isCurrentlyShown) {
+    map.removeLayer(cyclingLayer);
+  }
+
+  if (cyclingEnabled && map.getZoom() < CYCLING_MIN_ZOOM) {
+    btnCycling.textContent = "Zoom to see";
+  } else if (cyclingEnabled) {
+    btnCycling.textContent = "Hide"; 
+  } else {
+    btnCycling.textContent = "Show";
+  }
+}
+
+map.on('zoomend', updateCyclingVisibility);
+
+// Same idea for public transport -- useful at a slightly wider zoom
+// range than cycling lanes, but still gets cluttered zoomed all the way out.
+const TRANSIT_MIN_ZOOM = 12;
+let transitEnabled = false;
+
+function updateTransitVisibility() {
+  const shouldShow = transitEnabled && map.getZoom() >= TRANSIT_MIN_ZOOM;
+  const isCurrentlyShown = map.hasLayer(transitLayer);
+
+  if (shouldShow && !isCurrentlyShown) {
+    transitLayer.addTo(map);
+  } else if (!shouldShow && isCurrentlyShown) {
+    map.removeLayer(transitLayer);
+  }
+
+  if (transitEnabled && map.getZoom() < TRANSIT_MIN_ZOOM) {
+    btnTransit.textContent = "Zoom to   see";
+  } else if (transitEnabled) {
+    btnTransit.textContent = "Hide";
+  } else {
+    btnTransit.textContent = "Show";
+  }
+}
+
+map.on('zoomend', updateTransitVisibility);
+
+let allTownFeatures = [];   // raw GeoJSON features for the towns
+let routesIndex = {};       // town_name -> route LineString feature
+let selectedRouteLayer = null;
+let selectedMarker = null;
+
+// ---------------------------------------------------------------------
+// LOAD TOWNS (highlighted, selectable markers at the exact name-label point)
+// ---------------------------------------------------------------------
+fetch(TOWNS_GEOJSON_URL)
+  .then(r => r.json())
+  .then(data => {
+    allTownFeatures = data.features;
+
+    data.features.forEach(feature => {
+      const [lon, lat] = feature.geometry.coordinates;
+      const props = feature.properties;
+
+      const marker = L.circleMarker([lat, lon], {
+        radius: 9,
+        fillColor: "#b5502f",
+        color: "#7a3520",
+        weight: 2,
+        fillOpacity: 0.9
+      });
+
+      marker.on('click', () => selectTown(feature, marker));
+      marker.addTo(townsLayer);
+    });
+  })
+  .catch(err => console.error("Failed to load towns.geojson:", err));
+
+// ---------------------------------------------------------------------
+// LOAD PER-TOWN ROUTES (used to highlight the route on selection)
+// ---------------------------------------------------------------------
+fetch(ROUTES_GEOJSON_URL)
+  .then(r => r.json())
+  .then(data => {
+    data.features.forEach(f => {
+      routesIndex[f.properties.town_name] = f;
+    });
+  })
+  .catch(err => console.error("Failed to load routes.geojson:", err));
+
+// ---------------------------------------------------------------------
+// LOAD CYCLING LANES (toggleable overlay, off by default)
+// ---------------------------------------------------------------------
+fetch(CYCLING_GEOJSON_URL)
+  .then(r => r.json())
+  .then(data => {
+    L.geoJSON(data, {
+      style: { color: "#2f7d4f", weight: 2, opacity: 0.75, dashArray: "4 3" }
+    }).addTo(cyclingLayer);
+  })
+  .catch(err => console.error("Failed to load cycling_lanes.geojson:", err));
+
+// ---------------------------------------------------------------------
+// LOAD PUBLIC TRANSPORT ROUTES (toggleable overlay, off by default)
+// ---------------------------------------------------------------------
+fetch(TRANSIT_GEOJSON_URL)
+  .then(r => r.json())
+  .then(data => {
+    L.geoJSON(data, {
+      style: { color: "#4B0082", weight: 2, opacity: 0.6 }
+    }).addTo(transitLayer);
+  })
+  .catch(err => console.error("Failed to load public_transport.geojson:", err));
+
+// ---------------------------------------------------------------------
+// TOWN SELECTION: popup + route highlight
+// ---------------------------------------------------------------------
+function selectTown(feature, marker) {
+  const props = feature.properties;
+
+  // Clear any previous selection's highlighted route
+  if (selectedRouteLayer) {
+    map.removeLayer(selectedRouteLayer);
+    selectedRouteLayer = null;
+  }
+  if (selectedMarker) {
+    selectedMarker.setStyle({ fillColor: "#b5502f", radius: 9 });
+  }
+
+  // Emphasize the newly selected marker
+  marker.setStyle({ fillColor: "#e8b84b", radius: 12 });
+  selectedMarker = marker;
+
+  // Highlight the route to the nearest supermarket, if we have it
+  const routeFeature = routesIndex[props.name];
+  if (routeFeature) {
+    selectedRouteLayer = L.geoJSON(routeFeature, {
+      style: { color: "#e8b84b", weight: 5, opacity: 0.95 }
+    }).addTo(map);
+  }
+
+  const popupHtml = `
+    <div class="popup-title">${props.name}</div>
+    <div class="popup-row"><span>Province:</span> ${props.province}</div>
+    <div class="popup-row"><span>Population:</span> ${props.population ?? "N/A"}</div>
+    <div class="popup-row"><span>Distance to nearest supermarket:</span> ${props.distance_km} km</div>
+    <div class="popup-row"><span>Nearest supermarket:</span> ${props.nearest_supermarket}</div>
+  `;
+
+  marker.bindPopup(popupHtml).openPopup();
+}
+
+// ---------------------------------------------------------------------
+// LAYER TOGGLE BUTTONS
+// ---------------------------------------------------------------------
+const btnTransit = document.getElementById('btn-transit');
+const btnCycling = document.getElementById('btn-cycling');
+
+btnTransit.addEventListener('click', () => {
+  transitEnabled = !transitEnabled;
+  btnTransit.classList.toggle('active', transitEnabled);
+  updateTransitVisibility();
+});
+
+btnCycling.addEventListener('click', () => {
+  cyclingEnabled = !cyclingEnabled;
+  btnCycling.classList.toggle('active', cyclingEnabled);
+  updateCyclingVisibility();
+});
+</script>
+</body>
+</html>
