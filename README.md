@@ -12,7 +12,7 @@ each town's route to its nearest supermarket.
 
 Below are screenshots showing the output:
 <img width="1440" height="1080" alt="Map Screenshot 2" src="https://github.com/user-attachments/assets/b04ca958-c1d0-42d1-be39-97c3d96881d9" />
-<img width="1395" height="785" alt="Spreadsheet Output Screenshot" src="https://github.com/user-attachments/assets/59738294-bca8-4c87-a026-d835bc7d67e1" />
+<img width="1436" height="780" alt="Spreadsheet Output Screenshot" src="https://github.com/user-attachments/assets/92b1816b-1bf1-4b8d-be01-42c577533584" />
 <img width="1440" height="1080" alt="Map Screeshot 1" src="https://github.com/user-attachments/assets/2a29bfd8-d365-4015-b8a9-9701ee733396" />
 
 All geographic data is read from a local OpenStreetMap file rather than
