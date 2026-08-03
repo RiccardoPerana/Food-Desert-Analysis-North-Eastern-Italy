@@ -1,6 +1,6 @@
 # Food Desert Analysis Pipeline — Northeastern Italy (Scalable)
 
-Identifies Italian comuni (municipalities) that:
+Identifies Italian municipalities that:
 1. Have no supermarket or minimarket of their own
 2. Have a real, road-routed walking distance of more than 3km from the
    nearest supermarket
@@ -118,12 +118,12 @@ venv\Scripts\activate
 python pipeline.py
 ```
  
-This fetches comuni boundaries, attaches population data, fetches
-supermarkets, and evaluates every comune against the criteria. Results:
+This fetches municipal boundaries, attaches population data, fetches
+supermarkets, and evaluates every town against the criteria. Results:
 - `output/food_desert_towns.xlsx` — full spreadsheet, every matched town
 - `output/towns.geojson`, `output/routes.geojson` — data for the web map
 First run takes longer (building local caches); subsequent runs are much
-faster since comuni and supermarket data get cached in `data/*.gpkg`.
+faster since towns and supermarket data get cached in `data/*.gpkg`.
  
 ---
  
@@ -209,4 +209,3 @@ live query for a second opinion.
   pass/fail check for safe infrastructure, the map lets you check this
   visually — select a town, toggle "Cycling lanes" on, and zoom in to see
   whether a lane runs along the highlighted route.
- 
