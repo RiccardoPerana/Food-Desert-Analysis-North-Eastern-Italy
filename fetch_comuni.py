@@ -1,174 +1,134 @@
 """
-fetch_comuni.py
----------------
-Fetches all "comune" (municipality) boundaries within the target area,
-and for each one, the exact point where its name label is rendered on the map.
+Fetches all towns boundaries within the target area, and for each one, the exact point where its name label is rendered on the map.
 
-This fetches almost everything in bulk, in 2 Overpass queries total for
-the whole target area (regardless of how many comuni it contains):
-  1. One query gets ALL admin_level=8 boundary relations AND all their
-     member nodes (including admin_centre) in a single request.
-  2. One fallback query gets ALL place=city|town|village nodes in the
-     whole area at once, for comuni whose admin_centre wasn't tagged --
-     matched locally by name instead of queried individually.
+Admin-center and place-node lookups read directly from the local.osm.pbf file (via `osmium`) 
+These previously had a confirmed silent-failure mode.
 
-Only the boundary POLYGON geometry still requires one call per comune
-(via osmnx/Nominatim, a separate, non-Overpass service).
+Only the boundary POLYGON geometry per comune still uses osmnx/Nominatim (a separate, non-Overpass, non-local-file service)
 """
 
 import time
 import os
-import overpy
+import osmium
 import geopandas as gpd
 from shapely.geometry import Point
 import osmnx as ox
 
 import config
-from overpass_utils import query_with_retry
 
 
-def _build_area_query_fragment():
-    """Builds the Overpass 'area' selector for the configured target area.
-
-    Uses regex ('~') matching instead of exact ('=') string matching for
-    region/province names. This matters because OSM sometimes tags region
-    names with quirks that break exact matching -- e.g. Trentino-Alto
-    Adige is actually tagged "Trentino – Alto Adige/Südtirol" (en-dash,
-    plus a German name appended), which silently matched ZERO relations
-    under exact matching, with no error at all. A substring match still
-    reliably finds the right admin_level=4 area without needing to know
-    every possible naming variant in advance.
+class _AdminRelationCollector(osmium.SimpleHandler):
     """
-    if config.TARGET_LEVEL == "province":
-        return f'area["name"~"{config.TARGET_NAME}"]["admin_level"="6"]->.searchArea;'
-    elif config.TARGET_LEVEL == "region":
-        return f'area["name"~"{config.TARGET_NAME}"]["admin_level"="4"]->.searchArea;'
-    elif config.TARGET_LEVEL == "country":
-        return f'area["ISO3166-1"="{config.COUNTRY_ISO}"]["admin_level"="2"]->.searchArea;'
-    elif config.TARGET_LEVEL == "multi_region":
-        # Combine multiple named regions into one search area via Overpass's
-        # union operator. Each region gets its own temporary area variable
-        # (.r0, .r1, ...), then they're unioned together into .searchArea.
-        lines = []
-        var_names = []
-        for i, region_name in enumerate(config.TARGET_REGIONS):
-            var = f".r{i}"
-            lines.append(f'area["name"~"{region_name}"]["admin_level"="4"]->{var};')
-            var_names.append(var)
-        union_expr = "; ".join(var_names) + ";"
-        lines.append(f'({union_expr})->.searchArea;')
-        return "\n    ".join(lines)
-    else:
-        raise ValueError(f"Unknown TARGET_LEVEL: {config.TARGET_LEVEL}")
+    Pass 1: collects every admin_level=8 boundary relation's name and, if tagged, the node ID of its admin_centre member.
+    We only need the ID here, not its location yet becasue resolving locations requires a (see _NodeLocationResolver below), 
+    since relations are stored after nodes in a normal .osm.pbf file, 
+    so we can't know which node IDs we'll need until this first pass has finished.
+    """
+    def __init__(self):
+        super().__init__()
+        self.records = []
+        self.wanted_node_ids = set()
+
+    def relation(self, r):
+        if r.tags.get("boundary") != "administrative" or r.tags.get("admin_level") != "8":
+            return
+        name = r.tags.get("name")
+        if not name:
+            return
+
+        admin_centre_ref = None
+        for m in r.members:
+            if m.role == "admin_centre" and m.type == "n":
+                admin_centre_ref = m.ref
+                self.wanted_node_ids.add(m.ref)
+                break
+
+        self.records.append({
+            "name": name,
+            "osm_id": r.id,
+            "province_name": config.TARGET_NAME if config.TARGET_LEVEL == "province" else None,
+            "admin_centre_ref": admin_centre_ref,
+        })
+
+
+class _NodeLocationResolver(osmium.SimpleHandler):
+    """Pass 2: resolves a specific, known set of node IDs to their lon/lat."""
+    def __init__(self, wanted_ids):
+        super().__init__()
+        self.wanted_ids = wanted_ids
+        self.locations = {}
+
+    def node(self, n):
+        if n.id in self.wanted_ids:
+            self.locations[n.id] = (n.location.lon, n.location.lat)
 
 
 def fetch_comuni_relations_with_centers():
     """
-    TWO lightweight Overpass queries (instead of one heavy one):
-
-      Query A: relation tags + member list only, NO geometry recursion.
-               This used to also recurse (">") into every node making up
-               every boundary polygon -- for ~100 comuni with detailed
-               borders, that produced a multi-megabyte response that kept
-               failing mid-transfer (IncompleteRead / RemoteDisconnected)
-               on busy public mirrors. We don't need that geometry here,
-               only the admin_centre reference, so we skip it entirely.
-
-      Query B: a small, targeted lookup for ONLY the specific admin_centre
-               node IDs found in Query A (typically <=~100 nodes).
+    Reads all admin_level=8 boundary relations from the local .osm.pbf file 
+    and resolves each one's admin_centre point.
     """
-    area_fragment = _build_area_query_fragment()
+    print(f"[INFO] Reading comune boundary relations from {config.OSM_PBF_PATH} "
+          f"(no internet/Overpass involved)...")
+    collector = _AdminRelationCollector()
+    collector.apply_file(config.OSM_PBF_PATH)
 
-    # --- Query A: relations only, no geometry recursion ---
-    query_relations = f"""
-    [out:json][timeout:{config.OVERPASS_TIMEOUT}];
-    {area_fragment}
-    relation["admin_level"="8"]["boundary"="administrative"](area.searchArea);
-    out body;
-    """
-    result = query_with_retry(query_relations)
+    node_locations = {}
+    if collector.wanted_node_ids:
+        resolver = _NodeLocationResolver(collector.wanted_node_ids)
+        resolver.apply_file(config.OSM_PBF_PATH)
+        node_locations = resolver.locations
 
     records = []
-    rel_to_admin_centre_ref = {}
-    admin_centre_refs = set()
-
-    for rel in result.relations:
-        name = rel.tags.get("name")
-        if not name:
-            continue
-
-        admin_centre_ref = None
-        for member in rel.members:
-            if member.role == "admin_centre":
-                admin_centre_ref = member.ref
-                admin_centre_refs.add(member.ref)
-                break
-
+    for rec in collector.records:
+        center_point = None
+        ref = rec["admin_centre_ref"]
+        if ref is not None and ref in node_locations:
+            lon, lat = node_locations[ref]
+            center_point = Point(lon, lat)
         records.append({
-            "name": name,
-            "osm_id": rel.id,
-            "province_name": config.TARGET_NAME if config.TARGET_LEVEL == "province" else None,
-            "center_point": None,  # resolved below (Query B) or via bulk fallback
+            "name": rec["name"],
+            "osm_id": rec["osm_id"],
+            "province_name": rec["province_name"],
+            "center_point": center_point,
         })
-        rel_to_admin_centre_ref[rel.id] = admin_centre_ref
-
-    # --- Query B: targeted lookup of only the admin_centre node IDs ---
-    if admin_centre_refs:
-        ids_str = ",".join(str(i) for i in admin_centre_refs)
-        query_nodes = f"""
-        [out:json][timeout:{config.OVERPASS_TIMEOUT}];
-        node(id:{ids_str});
-        out body;
-        """
-        node_result = query_with_retry(query_nodes)
-        node_lookup = {n.id: (float(n.lon), float(n.lat)) for n in node_result.nodes}
-
-        for r in records:
-            ref = rel_to_admin_centre_ref.get(r["osm_id"])
-            if ref is not None and ref in node_lookup:
-                lon, lat = node_lookup[ref]
-                r["center_point"] = Point(lon, lat)
 
     found = sum(1 for r in records if r["center_point"] is not None)
     print(f"[INFO] {found}/{len(records)} comuni had a tagged admin_centre "
-          f"(resolved via 2 lightweight queries, no bulk geometry download).")
+          f"(resolved locally from file, no network).")
     return records
+
+
+class _PlaceNodeCollector(osmium.SimpleHandler):
+    """Collects every place=city|town|village node, for the label-point fallback."""
+    def __init__(self):
+        super().__init__()
+        self.lookup = {}
+
+    def node(self, n):
+        place = n.tags.get("place")
+        if place in ("city", "town", "village"):
+            name = n.tags.get("name")
+            if name:
+                self.lookup[name.strip().lower()] = Point(n.location.lon, n.location.lat)
 
 
 def fetch_all_place_nodes_bulk():
     """
-    ONE Overpass query: fetches every place=city|town|village node in the
-    whole target area at once. Used as a fallback name-lookup for comuni
-    that don't have a properly tagged admin_centre.
+    Reads every place=city|town|village node from the local .osm.pbf file at once. 
+    Used as a fallback name-lookup for towns that don't have a properly tagged admin_centre.
     """
-    area_fragment = _build_area_query_fragment()
-
-    query = f"""
-    [out:json][timeout:{config.OVERPASS_TIMEOUT}];
-    {area_fragment}
-    node["place"~"city|town|village"](area.searchArea);
-    out body;
-    """
-    result = query_with_retry(query)
-
-    lookup = {}
-    for node in result.nodes:
-        name = node.tags.get("name")
-        if name:
-            lookup[name.strip().lower()] = Point(float(node.lon), float(node.lat))
-
-    print(f"[INFO] Bulk-fetched {len(lookup)} place nodes for fallback matching.")
-    return lookup
+    collector = _PlaceNodeCollector()
+    collector.apply_file(config.OSM_PBF_PATH)
+    print(f"[INFO] Found {len(collector.lookup)} place nodes locally for fallback matching.")
+    return collector.lookup
 
 
 def fetch_comuni_boundary_polygons(names):
     """
     Fetches boundary POLYGON geometry per comune name via osmnx (Nominatim).
-    This still runs one request per comune -- Nominatim is a separate,
-    lighter-weight service from Overpass and is not the bottleneck we've
-    been hitting. At 1000+ comuni this is the single longest-running step
-    in the whole pipeline (likely 30-60+ minutes) -- progress is logged
-    periodically so it's clear the process hasn't hung.
+    This still runs one request per comune and is the single longest-running step in the pipeline (likely 30-60+ minutes)
+    Progress is logged periodically so it's clear the process hasn't hung.
     """
     geoms = {}
     total = len(names)
@@ -184,27 +144,58 @@ def fetch_comuni_boundary_polygons(names):
     return geoms
 
 
+def _filter_to_target_regions(gdf):
+    """
+    The local .osm.pbf file (Nord-Est extract) includes some bordering areas beyond Veneto/Friuli-Venezia Giulia/Trentino-Alto Adige;
+    This filters comuni down to just those whose center point actually falls within the target regions' real boundaries.
+    """
+    if config.TARGET_LEVEL == "multi_region":
+        region_names = config.TARGET_REGIONS
+    elif config.TARGET_LEVEL == "region":
+        region_names = [config.TARGET_NAME]
+    else:
+        return gdf  # single-province mode doesn't need this filter
+
+    print(f"[INFO] Filtering comuni to target regions {region_names} "
+          f"(the local file includes some bordering area beyond these)...")
+    region_polygons = []
+    for region_name in region_names:
+        try:
+            region_gdf = ox.geocode_to_gdf(f"{region_name}, Italy")
+            region_polygons.append(region_gdf.geometry.iloc[0])
+        except Exception as e:
+            print(f"[WARN] Could not geocode region '{region_name}' for filtering: {e}")
+
+    if not region_polygons:
+        print("[WARN] No region polygons resolved -- skipping filter (risk of extra comuni).")
+        return gdf
+
+    combined_region = region_polygons[0]
+    for p in region_polygons[1:]:
+        combined_region = combined_region.union(p)
+
+    before_count = len(gdf)
+    mask = gdf["center_point"].apply(lambda pt: combined_region.contains(pt))
+    filtered = gdf[mask].copy()
+    removed = before_count - len(filtered)
+    if removed:
+        print(f"[INFO] Removed {removed} comuni outside the target regions "
+              f"(e.g. San Marino, Marche, Emilia-Romagna picked up by the local file).")
+    return filtered
+
+
 def build_comuni_dataset():
     """
-    Full assembly: boundaries + label points, using the minimum number of
-    Overpass queries possible (2 total, regardless of area size).
+    Full assembly: boundaries + label points.
     Columns: name, osm_id, province_name, boundary (polygon), center_point (Point)
 
-    Caches the final result to disk (config.COMUNI_CACHE_PATH). At
-    multi-region scale this step involves 1000+ individual Nominatim
-    calls (one per comune, for boundary polygons) and can take well over
-    an hour -- if a LATER pipeline step crashes, you do not want to redo
-    this. Set config.FORCE_REFRESH_CACHE = True to ignore the cache.
+    Caches the final result to disk (config.COMUNI_CACHE_PATH).
+    Just in case a LATER pipeline step crashes, you do not have to redo this. 
+    Set config.FORCE_REFRESH_CACHE = True to ignore the cache.
     """
     if not config.FORCE_REFRESH_CACHE and os.path.exists(config.COMUNI_CACHE_PATH):
         print(f"[INFO] Loading comuni from cache: {config.COMUNI_CACHE_PATH}")
         gdf = gpd.read_file(config.COMUNI_CACHE_PATH)
-        # GeoPackage read/write round-trips sometimes silently rename the
-        # geometry column to "geometry" regardless of what it was called
-        # when written (this is what caused the "stray geometry column"
-        # warning during the Trentino merge too) -- normalize it back to
-        # "boundary" so every downstream access of comune_row["boundary"]
-        # works reliably regardless of what pyogrio decided to call it.
         if gdf.geometry.name != "boundary":
             print(f"[INFO] Renaming geometry column '{gdf.geometry.name}' -> 'boundary'.")
             gdf = gdf.rename(columns={gdf.geometry.name: "boundary"})
@@ -213,7 +204,7 @@ def build_comuni_dataset():
             lambda r: Point(r["center_lon"], r["center_lat"]), axis=1
         )
         gdf = gdf.drop(columns=["center_lon", "center_lat"])
-        return gdf
+        return _filter_to_target_regions(gdf)
 
     records = fetch_comuni_relations_with_centers()
 
@@ -244,10 +235,8 @@ def build_comuni_dataset():
     gdf = gpd.GeoDataFrame(valid_records, geometry=geoms, crs="EPSG:4326")
     gdf = gdf.rename(columns={"geometry": "boundary"})
     gdf = gdf.set_geometry("boundary")
+    gdf = _filter_to_target_regions(gdf)
 
-    # Cache to disk. GeoPackage only supports one active geometry column,
-    # so center_point gets flattened to plain lon/lat floats for storage
-    # and reconstructed as a Point on load (see the cache-read branch above).
     os.makedirs(os.path.dirname(config.COMUNI_CACHE_PATH), exist_ok=True)
     cache_gdf = gdf.copy()
     cache_gdf["center_lon"] = cache_gdf["center_point"].apply(lambda p: p.x)
@@ -258,8 +247,6 @@ def build_comuni_dataset():
 
     return gdf
 
-
 if __name__ == "__main__":
     comuni = build_comuni_dataset()
     print(comuni[["name", "center_point"]].head(20))
-    comuni.to_file("./data/comuni_padova.gpkg", driver="GPKG")

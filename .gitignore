@@ -1,15 +1,24 @@
+mkdir -p /home/claude/food_desert_pipeline
+cat > /home/claude/food_desert_pipeline/.gitignore << 'EOF'
 # Python environment
 venv/
+venv*/
 __pycache__/
 *.pyc
 
-# Large/generated data files -- not meant for version control
-data/
-output/
+# Large OSM data file (download separately -- see README)
 *.osm.pbf
-*.osrm*
+
+# Generated caches (regenerated automatically by the scripts)
+data/*.gpkg
+data/*checkpoint*
+
+# Generated outputs (everyone regenerates their own)
+output/
 
 # OS/editor clutter
-.vscode/
 .DS_Store
 Thumbs.db
+.vscode/
+EOF
+cat /home/claude/food_desert_pipeline/.gitignore

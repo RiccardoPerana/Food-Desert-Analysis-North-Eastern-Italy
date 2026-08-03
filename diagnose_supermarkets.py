@@ -1,42 +1,39 @@
 """
-diagnose_supermarkets.py
---------------------------
-ONE-OFF DIAGNOSTIC SCRIPT.
+DIAGNOSTIC SCRIPT -- spot-checks a specific town's supermarket data.
 
-Investigates suspected false positives (towns flagged as "far from any
-supermarket" when a supermarket actually exists nearby or even inside
-town). Compares:
-  1. What's in the CACHED supermarkets dataset near a given town
-  2. What a FRESH, live Overpass query finds near that same town
+For each town in TOWN_NAMES, this prints:
+  1. The town's center point and boundary size (sanity check on location data)
+  2. Whether it's flagged as underserved in your final spreadsheet output
+     (if pipeline.py has been run)
+  3. A TIGHT live query (3km) showing raw node/way details -- useful for
+     checking whether nearby supermarkets are being read correctly
+  4. What's in the CACHED supermarket dataset within ~10km
+  5. A wider LIVE query (10km) for comparison against the cache
 
-If live data finds supermarkets the cache doesn't have, that confirms
-the cached supermarket dataset has real gaps -- most likely from grid
-cells that silently failed during the original fetch (we've seen this
-happen repeatedly with flaky public Overpass mirrors all session).
-
+Edit TOWN_NAMES below to check different towns.
 Run with:  python diagnose_supermarkets.py
-Edit TOWN_NAMES below to check other towns.
 """
 
+import math
 import geopandas as gpd
+import pandas as pd
 from shapely.geometry import Point
 import overpy
 
 import config
 from overpass_utils import query_with_retry
 
-TOWN_NAMES = ["San Giovanni Lupatoto", "Nogara"]
-CHECK_RADIUS_KM = 10  # how far around the town center to check
+TOWN_NAMES = ["Torri di Quartesolo"]  # edit this list to check other towns
+CHECK_RADIUS_KM = 10
 
 
 def _km_to_deg(km, lat):
-    import math
     deg_lat = km / 111.0
     deg_lon = km / (111.320 * math.cos(math.radians(lat)))
     return deg_lat, deg_lon
 
 
-def check_town(name, comuni_gdf, supermarkets_cached):
+def check_town(name, comuni_gdf, supermarkets_cached, tight_radius_km=3):
     print(f"\n{'='*60}")
     print(f"TOWN: {name}")
     print(f"{'='*60}")
@@ -52,6 +49,53 @@ def check_town(name, comuni_gdf, supermarkets_cached):
     print(f"Center point: lon={center.x:.5f}, lat={center.y:.5f}")
     print(f"Boundary polygon area (deg^2, rough size indicator): {boundary.area:.6f}")
     print(f"Boundary bounding box: {boundary.bounds}")
+
+    # --- Check against final spreadsheet results, if they exist ---
+    try:
+        df = pd.read_excel(config.SPREADSHEET_PATH)
+        match = df[df["Town"] == name]
+        if not match.empty:
+            r = match.iloc[0]
+            print(f"\n[FINAL RESULTS] '{name}' IS flagged as underserved:")
+            print(f"   Distance to nearest supermarket: {r['Distance to Nearest Supermarket (km)']} km")
+            print(f"   Nearest supermarket: {r['Nearest Supermarket']}")
+            print(f"   Population: {r['Population']}")
+        else:
+            print(f"\n[FINAL RESULTS] '{name}' is NOT in the underserved-towns spreadsheet "
+                  f"(either it has its own supermarket, or is within the distance threshold).")
+    except FileNotFoundError:
+        print(f"\n[FINAL RESULTS] Could not find {config.SPREADSHEET_PATH} -- "
+              f"run pipeline.py first if you want this cross-check.")
+
+    # --- Tight-radius live check: raw node/way details ---
+    t_deg_lat, t_deg_lon = _km_to_deg(tight_radius_km, center.y)
+    t_south, t_north = center.y - t_deg_lat, center.y + t_deg_lat
+    t_west, t_east = center.x - t_deg_lon, center.x + t_deg_lon
+    print(f"\n[TIGHT LIVE CHECK] Fetching raw OSM elements within {tight_radius_km}km, "
+          f"showing node/way type and center-computation status...")
+    tight_query = f"""
+    [out:json][timeout:{config.OVERPASS_TIMEOUT}];
+    (
+      node["shop"~"supermarket|convenience"]({t_south},{t_west},{t_north},{t_east});
+      way["shop"~"supermarket|convenience"]({t_south},{t_west},{t_north},{t_east});
+    );
+    out center;
+    """
+    try:
+        tight_result = query_with_retry(tight_query)
+        for node in tight_result.nodes:
+            name_tag = node.tags.get("name", "Unnamed")
+            print(f"   [NODE] {name_tag} -- lon={node.lon}, lat={node.lat} (nodes always have coords)")
+        for way in tight_result.ways:
+            name_tag = way.tags.get("name", "Unnamed")
+            has_center = way.center_lon is not None and way.center_lat is not None
+            if has_center:
+                print(f"   [WAY]  {name_tag} -- center OK ({way.center_lon}, {way.center_lat})")
+            else:
+                print(f"   [WAY]  {name_tag} -- *** NO CENTER COMPUTED -- "
+                      f"WOULD BE SILENTLY DROPPED BY THE OLD OVERPASS-BASED CODE ***")
+    except Exception as e:
+        print(f"[ERROR] Tight live check failed: {e}")
 
     # --- Check 1: what's in the CACHED supermarket dataset nearby? ---
     deg_lat, deg_lon = _km_to_deg(CHECK_RADIUS_KM, center.y)
@@ -82,7 +126,7 @@ def check_town(name, comuni_gdf, supermarkets_cached):
     );
     out center;
     """
-    print(f"\n[LIVE QUERY] Fetching fresh data for the same area from Overpass...")
+    print(f"\n[LIVE QUERY] Fetching fresh data for the same {CHECK_RADIUS_KM}km area from Overpass...")
     try:
         result = query_with_retry(query)
         live_names = []

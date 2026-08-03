@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Food Desert Map</title>
+<title>Food Desert Map — Comuni Analysis</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <style>
@@ -59,28 +59,10 @@
     color: white;
     border-color: var(--accent);
   }
-  #legend {
-    position: absolute;
-    bottom: 24px;
-    left: 16px;
-    z-index: 1000;
-    background: var(--panel);
-    border: 1px solid var(--line);
-    border-radius: 10px;
-    padding: 10px 14px;
-    font-size: 12px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.12);
-  }
-  .legend-dot {
-    display: inline-block;
-    width: 10px; height: 10px;
-    border-radius: 50%;
-    margin-right: 6px;
-    vertical-align: middle;
-  }
   .popup-title { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
   .popup-row { font-size: 13px; margin: 2px 0; }
   .popup-row span { color: #6b6558; }
+  .popup-hint { font-size: 12px; color: #6b6558; margin-top: 6px; font-style: italic; }
 </style>
 </head>
 <body>
@@ -90,7 +72,7 @@
 <div id="controls">
   <h3>Layers</h3>
   <div class="toggle-row">
-    <span>Urban public transport</span>
+    <span>Public transport</span>
     <button id="btn-transit" class="toggle-btn">Show</button>
   </div>
   <div class="toggle-row">
@@ -99,16 +81,10 @@
   </div>
 </div>
 
-<div id="legend">
-  <span class="legend-dot" style="background:#b5502f"></span> Underserved town (matches all 3 criteria)
-</div>
-
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 // ---------------------------------------------------------------------
 // DATA SOURCES
-// These paths point to the GeoJSON files produced by pipeline.py and
-// fetch_map_layers.py. Regenerate those files, then just refresh this page.
 // ---------------------------------------------------------------------
 const TOWNS_GEOJSON_URL      = "/output/towns.geojson?_=" + Date.now();
 const ROUTES_GEOJSON_URL     = "/output/routes.geojson?_=" + Date.now();
@@ -118,9 +94,7 @@ const TRANSIT_GEOJSON_URL    = "/output/public_transport.geojson?_=" + Date.now(
 // ---------------------------------------------------------------------
 // MAP INITIALIZATION
 // ---------------------------------------------------------------------
-// Roughly covers Veneto, Trentino-Alto Adige, and Friuli-Venezia Giulia --
-// the user can't pan the map outside this box. Widen these corners if you
-// want more of Emilia-Romagna or Lombardy included too.
+// the user can't pan the map outside this area.
 const NE_ITALY_BOUNDS = L.latLngBounds(
   [44.3, 9.8],   // southwest corner
   [47.3, 14.0]   // northeast corner
@@ -130,10 +104,12 @@ const map = L.map('map', {
   zoomControl: true,
   minZoom: 8,
   maxBounds: NE_ITALY_BOUNDS,
-  maxBoundsViscosity: 1.0  // 1.0 = a solid wall at the edge; 0 = a soft, elastic bounce-back
-}).setView([45.4064, 11.8768], 10); // Padova province default; // Padova province default
+  maxBoundsViscosity: 1.0
+}).setView([45.4064, 11.8768], 10); // Padova province default
+
 L.tileLayer('https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', {
-  maxZoom: 19,
+  maxZoom: 18,
+  maxNativeZoom: 18,
   attribution: '&copy; OpenStreetMap contributors, Tiles style by <a href="https://www.hotosm.org/">Humanitarian OpenStreetMap Team</a>'
 }).addTo(map);
 
@@ -142,11 +118,9 @@ const transitLayer = L.layerGroup();
 const cyclingLayer = L.layerGroup();
 const townsLayer = L.layerGroup().addTo(map);
 
-// Cycling lanes overlap into a solid mass at low zoom no matter how thin
-// the lines are drawn -- so instead of trying to scale line weight with
-// zoom, we simply don't render the layer at all below this zoom level.
+// Cycling lanes turn into blobs at low zoom levels, so we don't render the layer below this zoom level.
 const CYCLING_MIN_ZOOM = 14;
-let cyclingEnabled = false; // tracks the user's toggle choice, independent of zoom
+let cyclingEnabled = false;
 
 function updateCyclingVisibility() {
   const shouldShow = cyclingEnabled && map.getZoom() >= CYCLING_MIN_ZOOM;
@@ -158,10 +132,17 @@ function updateCyclingVisibility() {
     map.removeLayer(cyclingLayer);
   }
 
+  // IMPORTANT: cycling lanes need to render ON TOP of a selected town's
+  // route line, so it's visually obvious by eye whether a cycling lane
+  // runs along that specific route.
+  if (map.hasLayer(cyclingLayer)) {
+    cyclingLayer.eachLayer(l => l.bringToFront && l.bringToFront());
+  }
+
   if (cyclingEnabled && map.getZoom() < CYCLING_MIN_ZOOM) {
     btnCycling.textContent = "Zoom to see";
   } else if (cyclingEnabled) {
-    btnCycling.textContent = "Hide"; 
+    btnCycling.textContent = "Hide";
   } else {
     btnCycling.textContent = "Show";
   }
@@ -169,9 +150,8 @@ function updateCyclingVisibility() {
 
 map.on('zoomend', updateCyclingVisibility);
 
-// Same idea for public transport -- useful at a slightly wider zoom
-// range than cycling lanes, but still gets cluttered zoomed all the way out.
-const TRANSIT_MIN_ZOOM = 12;
+// Public transport lines are not rendered at lower zoom levels, like cycling lanes
+const TRANSIT_MIN_ZOOM = 10;
 let transitEnabled = false;
 
 function updateTransitVisibility() {
@@ -185,7 +165,7 @@ function updateTransitVisibility() {
   }
 
   if (transitEnabled && map.getZoom() < TRANSIT_MIN_ZOOM) {
-    btnTransit.textContent = "Zoom to   see";
+    btnTransit.textContent = "Zoom to see";
   } else if (transitEnabled) {
     btnTransit.textContent = "Hide";
   } else {
@@ -195,13 +175,16 @@ function updateTransitVisibility() {
 
 map.on('zoomend', updateTransitVisibility);
 
-let allTownFeatures = [];   // raw GeoJSON features for the towns
-let routesIndex = {};       // town_name -> route LineString feature
+let allTownFeatures = [];
+let routesIndex = {};
 let selectedRouteLayer = null;
 let selectedMarker = null;
 
+const COLOR_TOWN = "#b5502f";
+const COLOR_SELECTED = "#e8b84b";
+
 // ---------------------------------------------------------------------
-// LOAD TOWNS (highlighted, selectable markers at the exact name-label point)
+// LOAD TOWNS
 // ---------------------------------------------------------------------
 fetch(TOWNS_GEOJSON_URL)
   .then(r => r.json())
@@ -214,8 +197,8 @@ fetch(TOWNS_GEOJSON_URL)
 
       const marker = L.circleMarker([lat, lon], {
         radius: 9,
-        fillColor: "#b5502f",
-        color: "#7a3520",
+        fillColor: COLOR_TOWN,
+        color: "#5c4326",
         weight: 2,
         fillOpacity: 0.9
       });
@@ -227,7 +210,7 @@ fetch(TOWNS_GEOJSON_URL)
   .catch(err => console.error("Failed to load towns.geojson:", err));
 
 // ---------------------------------------------------------------------
-// LOAD PER-TOWN ROUTES (used to highlight the route on selection)
+// LOAD PER-TOWN ROUTES
 // ---------------------------------------------------------------------
 fetch(ROUTES_GEOJSON_URL)
   .then(r => r.json())
@@ -245,7 +228,7 @@ fetch(CYCLING_GEOJSON_URL)
   .then(r => r.json())
   .then(data => {
     L.geoJSON(data, {
-      style: { color: "#2f7d4f", weight: 2, opacity: 0.75, dashArray: "4 3" }
+      style: { color: "#2f7d4f", weight: 1.5, opacity: 0.75, dashArray: "4 3" }
     }).addTo(cyclingLayer);
   })
   .catch(err => console.error("Failed to load cycling_lanes.geojson:", err));
@@ -257,7 +240,7 @@ fetch(TRANSIT_GEOJSON_URL)
   .then(r => r.json())
   .then(data => {
     L.geoJSON(data, {
-      style: { color: "#4B0082", weight: 2, opacity: 0.6 }
+      style: { color: "#2f5f9e", weight: 2, opacity: 0.6 }
     }).addTo(transitLayer);
   })
   .catch(err => console.error("Failed to load public_transport.geojson:", err));
@@ -268,25 +251,27 @@ fetch(TRANSIT_GEOJSON_URL)
 function selectTown(feature, marker) {
   const props = feature.properties;
 
-  // Clear any previous selection's highlighted route
   if (selectedRouteLayer) {
     map.removeLayer(selectedRouteLayer);
     selectedRouteLayer = null;
   }
   if (selectedMarker) {
-    selectedMarker.setStyle({ fillColor: "#b5502f", radius: 9 });
+    selectedMarker.setStyle({ fillColor: COLOR_TOWN, radius: 9 });
   }
 
-  // Emphasize the newly selected marker
-  marker.setStyle({ fillColor: "#e8b84b", radius: 12 });
+  marker.setStyle({ fillColor: COLOR_SELECTED, radius: 12 });
   selectedMarker = marker;
 
-  // Highlight the route to the nearest supermarket, if we have it
   const routeFeature = routesIndex[props.name];
   if (routeFeature) {
     selectedRouteLayer = L.geoJSON(routeFeature, {
-      style: { color: "#e8b84b", weight: 5, opacity: 0.95 }
+      style: { color: COLOR_SELECTED, weight: 5, opacity: 0.95 }
     }).addTo(map);
+  }
+
+  // Re-assert cycling lanes on top of the just-drawn route, otherwise the newly-added route would sit above the cycling layer
+  if (map.hasLayer(cyclingLayer)) {
+    cyclingLayer.eachLayer(l => l.bringToFront && l.bringToFront());
   }
 
   const popupHtml = `

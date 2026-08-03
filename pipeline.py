@@ -1,19 +1,19 @@
 """
-pipeline.py
------------
-Main orchestrator. Runs the full food-desert analysis:
-
-  1. Fetch comuni boundaries + name-label center points
+Main orchestrator. Runs the full urban-desert analysis:
+  1. Fetch towns boundaries + name-label center points
   2. Attach official ISTAT population figures
   3. Fetch supermarkets/minimarkets (target area + cross-border buffer)
-  4. For each comune:
+  4. For each town:
        a. Exclude if it already has a supermarket within its own boundary
+          (OR within center_check_km of its center point: a safety net
+          for towns whose boundary polygon turned out to be inaccurate)
        b. Straight-line prefilter -> routed walking distance
        c. Exclude if routed distance <= 3km
-       d. (Skippable while testing) cycling route + OSM tag check for
-          sidewalks/cycling lanes
-       e. Keep only if NEITHER sidewalk nor cycling infrastructure exists
   5. Export results to spreadsheet + GeoJSON for the web map
+
+Note: there is no automated cycling-lane/sidewalk check. 
+Instead, the web map renders the cycling-lane layer visually on top of each selected town's route, 
+so this can be checked by eye directly on the map --
 
 Run with:  python pipeline.py
 """
@@ -27,21 +27,17 @@ import config
 from fetch_comuni import build_comuni_dataset
 from fetch_supermarkets import fetch_supermarkets
 from population_istat import attach_population
-from routing import find_nearest_supermarket_straightline, get_walking_route, get_cycling_route
-from infrastructure_check import fails_infrastructure_criteria
+from routing import find_nearest_supermarket_straightline, get_walking_route
 
 
 def _safe_value(value, fallback=None):
     """
     Returns `value` unless it's None or NaN, in which case returns `fallback`.
     Needed because `value or fallback` is NOT safe for this -- float('nan')
-    is truthy in Python, so a plain `or` chain would keep a stray NaN
-    instead of falling through to the fallback. This matters a lot here:
-    Python's json.dump() writes NaN as a literal (invalid) `NaN` token in
-    JSON output, which JavaScript's JSON.parse() rejects outright -- and
-    since JSON.parse fails on the whole file, not just one bad value, a
-    single NaN anywhere in towns.geojson was enough to make EVERY town
-    disappear from the map, not just the one with the bad value.
+    is truthy in Python, so a plain `or` chain would keep a stray NaN instead of falling through to the fallback. 
+    This matters because Python's json.dump() writes NaN as a literal (invalid) `NaN` token in JSON output, 
+    which JavaScript's JSON.parse() rejects outright -- andsince JSON.parse fails on the whole file,
+    a single NaN anywhere in towns.geojson would make EVERY town disappear from the map, not just the one with the bad value.
     """
     if value is None:
         return fallback
@@ -55,17 +51,12 @@ def _safe_value(value, fallback=None):
 
 def town_has_own_supermarket(comune_row, supermarkets_gdf, center_check_km=1.5):
     """
-    True if a supermarket falls within (or just outside) the comune's own
-    boundary, OR within a straight-line radius of the town's center point.
-
-    The center-point check is a safety net: some comuni (especially large,
-    urbanized ones bordering a bigger city -- e.g. San Giovanni Lupatoto
-    next to Verona) got a boundary polygon from Nominatim that's
-    inaccurate -- too small, offset, or matched to the wrong entity of
-    the same name -- which made the boundary-only check wrongly report
-    NO supermarket for towns that obviously have one nearby. Checking
-    proximity to the center point directly catches these cases without
-    needing to re-fetch or re-verify every boundary polygon.
+    True if a supermarket falls within (or just outside) the comune's own boundary, OR within a straight-line radius of the town's center point.
+    The center-point check is a safety net: some towns (especially large, urbanized ones bordering a bigger city) 
+    got a boundary polygon from Nominatim that's too small, offset, or matched to the wrong entity of the same name 
+    which made the boundary-only check wrongly report.
+    NO supermarket for towns that obviously have one nearby. 
+    Checking proximity to the center point directly catches these cases without needing to re-fetch or re-verify every boundary polygon.
     """
     boundary_buffered = comune_row["boundary"].buffer(
         config.OWN_SUPERMARKET_BUFFER_M / 111_000  # meters -> degrees, rough
@@ -92,12 +83,6 @@ def run_pipeline():
     print("[STEP 3] Fetching supermarkets (target area + border buffer)...")
     supermarkets = fetch_supermarkets(comuni)
 
-    if config.SKIP_INFRASTRUCTURE_CHECK:
-        print("[NOTE] SKIP_INFRASTRUCTURE_CHECK is True -- criterion 3 "
-              "(sidewalk/cycling check) will NOT be evaluated. Results "
-              "below reflect criteria 1 & 2 only. Set this to False in "
-              "config.py once your bike-profile OSRM server is running.")
-
     results = []
     route_geoms_for_map = []
 
@@ -122,19 +107,7 @@ def run_pipeline():
         if walk_km <= config.DISTANCE_THRESHOLD_KM:
             continue  # close enough by real-world walking distance
 
-        # --- Criterion 3: no sidewalk / cycling lane on the route ---
-        route_for_check = walk_route
-        infra_status = "NOT CHECKED (testing mode)"
-
-        if not config.SKIP_INFRASTRUCTURE_CHECK:
-            cycle_km, cycle_route = get_cycling_route(town_point, nearest_market.geometry)
-            route_for_check = cycle_route if cycle_route is not None else walk_route
-
-            if not fails_infrastructure_criteria(route_for_check):
-                continue  # infrastructure exists -> doesn't meet our criteria
-            infra_status = "FAILS (no sidewalk/cycling lane)"
-
-        # --- Passed criteria 1 & 2 (and 3, if checked): record it ---
+        # --- Passed both evaluated criteria: record it ---
         raw_population = comune.get("population")
         population = int(raw_population) if pd.notna(raw_population) else None
 
@@ -151,7 +124,6 @@ def run_pipeline():
             "distance_km": round(walk_km, 2),
             "flagged_for_review": walk_km >= config.DISTANCE_REVIEW_THRESHOLD_KM,
             "nearest_supermarket": nearest_market["name"],
-            "infrastructure_status": infra_status,
             "town_lat": town_point.y,
             "town_lon": town_point.x,
             "supermarket_lat": nearest_market.geometry.y,
@@ -160,7 +132,7 @@ def run_pipeline():
 
         route_geoms_for_map.append({
             "town_name": comune["name"],
-            "geometry": route_for_check,
+            "geometry": walk_route,
         })
 
     print(f"[DONE] {len(results)} towns matched the evaluated criteria.")
@@ -173,10 +145,10 @@ def _write_outputs(results, route_geoms_for_map):
     from export_spreadsheet import export_to_spreadsheet
     export_to_spreadsheet(results, config.SPREADSHEET_PATH)
 
-    # The spreadsheet (already written above) intentionally keeps EVERY
-    # result, flagged or not -- it's your full audit trail. The web map,
-    # by contrast, should only show towns you've decided to trust, so
-    # flagged-for-review towns (and their routes) are excluded here.
+    # The spreadsheet (already written above) intentionally keeps EVERY result, flagged or not
+    # it's your full audit trail. 
+    # The web map, by contrast, should only show towns you've decided to trust,
+    # so flagged-for-review towns (and their routes) are excluded here.
     unflagged_results = [r for r in results if not r.get("flagged_for_review", False)]
     unflagged_names = {r["name"] for r in unflagged_results}
     print(f"[INFO] Map will show {len(unflagged_results)}/{len(results)} towns "
@@ -195,7 +167,6 @@ def _write_outputs(results, route_geoms_for_map):
                     "distance_km": r["distance_km"],
                     "flagged_for_review": r["flagged_for_review"],
                     "nearest_supermarket": r["nearest_supermarket"],
-                    "infrastructure_status": r["infrastructure_status"],
                     "supermarket_lat": r["supermarket_lat"],
                     "supermarket_lon": r["supermarket_lon"],
                 },

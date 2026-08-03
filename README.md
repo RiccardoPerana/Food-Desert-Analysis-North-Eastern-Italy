@@ -1,86 +1,110 @@
-# Food Desert Analysis — North-Eastern Italy
+# Food Desert Analysis Pipeline — Padua Province (scalable to Veneto / Italy)
 
-A data pipeline and interactive map identifying towns in Veneto, Friuli-Venezia
-Giulia, and Trentino-Alto Adige where access to a supermarket is genuinely
-difficult — no shop in town, a long walk to the nearest one, and no safe
-sidewalk or cycling route to get there.
+Finds comuni (municipalities) that:
+1. Have no supermarket/minimarket of their own
+2. Have their name-label point (city center) more than 3km — by real
+   routed walking distance — from the nearest supermarket
+3. (Phase 2) Have no sidewalk or cycling lane along that specific route
 
-## Why This Project
+Outputs: an Excel spreadsheet + an interactive Leaflet web map.
 
-Italy's population is aging, and for elderly residents without a car, the
-distance to the nearest supermarket — and whether they can safely walk or
-cycle there — is a real quality-of-life issue. This project combines open
-map data with official population statistics to systematically find and
-quantify which towns are most affected, across an area of over 1,000
-comuni (municipalities).
+---
 
-## What It Does
+## Where You Are (fresh restart)
 
-For every comune in the target area, the pipeline checks three criteria:
+You already have, from before:
+- ✅ Python 3.14 + venv working
+- ✅ All pip dependencies installed
+- ✅ `data/istat_population_comuni.csv` in place
+- ✅ Docker Desktop + WSL2 working
+- ✅ `nord-est-latest.osm.pbf` downloaded and processed (extract, partition,
+  customize all completed successfully) — this file should still be sitting
+  in your project folder, no need to redo those steps.
 
-1. **No supermarket or minimarket of its own**
-2. **The town center is more than 3km, by real routed walking distance,
-   from the nearest supermarket** — not straight-line distance, actual
-   road-network distance
-3. **No sidewalk or cycling lane exists along that specific route**
+This zip replaces every `.py` file with a clean, consistent version. **Copy
+these over your existing files entirely** (don't hand-merge with old
+versions) to avoid the mismatched-edits problem from before.
 
-Towns meeting all three are flagged as underserved. Critically, the
-analysis correctly handles the case where a town's nearest supermarket is
-across a provincial or regional border — it never artificially restricts
-the search to administrative boundaries.
+---
 
-## Outputs
+## 1. Re-confirm your environment still works
 
-- **An Excel spreadsheet** listing every matched town: name, province,
-  population, distance to the nearest supermarket, and the supermarket
-  itself — with a built-in "flagged for review" column for any result
-  that looks like it might warrant a manual sanity check.
-- **An interactive web map** (Leaflet + OpenStreetMap) with:
-  - Zoomable, pannable view restricted to the region of interest
-  - Highlighted, clickable markers for every underserved town
-  - Toggleable overlays for cycling lanes and urban public transport
-  - Click any town for a popup with its stats, and see its route to the
-    nearest supermarket highlighted on the map
+Open VS Code in `food_desert_pipeline`, open a terminal:
 
-## Data Sources
+```powershell
+venv\Scripts\activate
+python -c "import osmnx, geopandas, shapely, pandas, requests, openpyxl, polyline, overpy; print('All imports OK')"
+```
 
-- **[OpenStreetMap](https://www.openstreetmap.org/)** (via the Overpass
-  API) — town locations, supermarket locations, road network, sidewalks,
-  cycling lanes, and public transport routes
-- **[ISTAT](https://www.istat.it/)** (Italy's national statistics
-  institute) — official comune-level population figures
-- **[OSRM](http://project-osrm.org/)** (self-hosted) — real routed
-  walking/cycling distances, not straight-line estimates
+---
 
-## Tech Stack
+## 2. Start the OSRM routing server
 
-Python (GeoPandas, Shapely, OSMnx, openpyxl) for the data pipeline;
-Leaflet.js for the web map; Docker for a self-hosted OSRM routing engine.
+You already built the Nord-Est OSRM data — you do NOT need to repeat the
+`osrm-extract` / `osrm-partition` / `osrm-customize` steps. Just start the
+server, in its own dedicated terminal tab (Terminal → New Terminal):
 
-## Setup
+```powershell
+docker run -t -i -p 5000:5000 -v "${PWD}:/data" osrm/osrm-backend osrm-routed --algorithm mld /data/nord-est-latest.osrm
+```
 
-This is a data-heavy pipeline that queries public map APIs and requires a
-locally-run routing engine. See [SETUP.md](SETUP.md) for full instructions,
-including:
-- Getting ISTAT population data
-- Setting up a local OSRM instance via Docker
-- Running the pipeline and generating the map
+Wait for `running and waiting for requests`, then **leave this tab alone**
+for the rest of your session — it's a live server, not a one-shot command.
 
-## Known Limitations
+---
 
-- **Public transport coverage on the map reflects OpenStreetMap's own
-  data completeness**, which is strong for urban routes but inconsistent
-  for regional/inter-urban coach lines — a town's real inter-urban bus
-  connection may not appear even if it exists.
-- **Cycling/sidewalk infrastructure detection is tag-based** (OSM
-  `sidewalk=*`, `cycleway=*`), so completeness depends on how thoroughly
-  a given road has been mapped.
-- Population and boundary data come from a specific snapshot in time;
-  Italian comuni occasionally merge or rename, which can very occasionally
-  cause a name-matching gap (surfaced clearly in the console output when
-  it happens, not silently dropped).
+## 3. Run the pipeline (in a SEPARATE terminal tab)
 
-## License
+```powershell
+venv\Scripts\activate
+python pipeline.py
+```
 
-[Choose one, e.g. MIT — see LICENSE file]
+`config.py` currently has `SKIP_INFRASTRUCTURE_CHECK = True` — this means
+criterion 3 (sidewalk/cycling check) is intentionally skipped for now, so
+you can validate the full pipeline end-to-end using only the walking-route
+OSRM server you already built. Results will be labeled
+`"NOT CHECKED (testing mode)"` in that column so this is never mistaken for
+final data.
 
+This run should now take a few minutes, not hours — the comuni/label-point
+fetching was rebuilt to use only a handful of small, targeted Overpass
+queries instead of ~200 heavy ones, and the retry logic now automatically
+rotates across multiple public Overpass mirrors (`overpass.kumi.systems`,
+`overpass-api.de`, `overpass.osm.ch`) if one happens to be down or unstable.
+
+---
+
+## 4. Once Phase 1 (testing mode) looks right
+
+Check `output/food_desert_towns.xlsx` and `output/towns.geojson`. If
+Campodoro and Bevadoro-type towns show up as expected, you're ready for
+Phase 2: build a second OSRM server with the **bike** profile (same
+`nord-est-latest.osm.pbf`, but extracted with `/opt/bicycle.lua` instead of
+`/opt/foot.lua`, run on a different port like 5001), then set
+`SKIP_INFRASTRUCTURE_CHECK = False` in `config.py` and re-run.
+
+---
+
+## 5. View the web map
+
+```powershell
+cd map
+python -m http.server 8000
+```
+Open `http://localhost:8000`. It reads directly from `../output/*.geojson`.
+
+---
+
+## 6. Known limitations
+
+- Distance is measured by **walking route**. Swap
+  `config.OSRM_PROFILE_WALK` to `"driving"` if you'd rather use driving
+  distance as the headline number.
+- Infrastructure checking (once enabled) is tag-based (OSM `sidewalk=*`,
+  `cycleway=*`). Rural Veneto OSM completeness varies by comune — consider
+  a manual spot-check of a sample before publishing final figures.
+- A small percentage of comuni may fall back to polygon-centroid for their
+  center point if OSM's `admin_centre` tagging is missing AND the bulk
+  place-node fallback doesn't find a name match. These are logged with
+  `[FALLBACK]` — check the console output after each run.

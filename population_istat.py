@@ -1,17 +1,13 @@
 """
-population_istat.py
---------------------
 Loads official ISTAT population figures and matches them to comuni by name.
 
-Supports MULTIPLE input files (config.ISTAT_POPULATION_CSVS) -- e.g. one
-per region -- which get combined into a single lookup table automatically.
+Supports MULTIPLE input files (config.ISTAT_POPULATION_CSVS) -- e.g. one per region
+which get combined into a single lookup table automatically.
 
 Handles two known ISTAT column-naming variants for the comune name field:
-"Denominazione Comune" or "Nome Comune" (different exports use different
-labels for the same thing).
+"Denominazione Comune" or "Nome Comune" (different exports use different labels for the same thing).
 
-Expected columns per file: Provincia, Codice Comune,
-Denominazione/Nome Comune, Popolazione Totale.
+Expected columns per file: Provincia, Codice Comune, Denominazione/Nome Comune, Popolazione Totale.
 """
 
 import pandas as pd
@@ -34,10 +30,7 @@ def _normalize_name(name):
 
 
 def _find_name_column(columns):
-    """
-    Finds the comune-name column across known ISTAT naming variants:
-    'Denominazione Comune', 'Nome Comune', etc.
-    """
+    # Finds the comune-name column across known ISTAT naming variants: 'Denominazione Comune', 'Nome Comune', etc.
     lower_cols = {c.lower(): c for c in columns}
 
     # Variant 1: contains "denomin" (e.g. "Denominazione Comune")
@@ -55,9 +48,11 @@ def _find_name_column(columns):
 
 
 def _load_single_file(path):
-    """Loads and cleans one ISTAT CSV file, returning a standardized DataFrame."""
-    # ISTAT exports are Latin-1 (ISO-8859-1) encoded, not UTF-8 -- Italian
-    # accented characters (Arsiè, Città, etc.) will fail to decode otherwise.
+    """
+    Loads and cleans one ISTAT CSV file, returning a standardized DataFrame.
+    ISTAT exports are Latin-1 (ISO-8859-1) encoded, not UTF-8 -- 
+    Italian accented characters (Arsiè, Città, etc.) will fail to decode otherwise.
+    """
     df = pd.read_csv(path, sep=None, engine="python", encoding="latin1")
     df.columns = [c.strip() for c in df.columns]
 
@@ -113,10 +108,7 @@ def _load_single_file(path):
 
 
 def load_population_table():
-    """
-    Loads and combines every file in config.ISTAT_POPULATION_CSVS into a
-    single population lookup table.
-    """
+    # Loads and combines every file in config.ISTAT_POPULATION_CSVS into a single population lookup table.
     all_dfs = []
     for path in config.ISTAT_POPULATION_CSVS:
         try:
@@ -144,12 +136,11 @@ def _generate_name_candidates(name):
     Generates candidate names to try matching against ISTAT data.
 
     Handles bilingual comune names, which are common in Trentino-Alto Adige
-    (German - Italian, e.g. "Meran - Merano" -- note the language order is
-    NOT consistent, some are Italian-first like "Bolzano - Bozen") and in
-    Friuli-Venezia Giulia (Italian / Friulian or Slovenian, e.g.
-    "Udine / Udin"). ISTAT's official records use only the plain Italian
-    name, but OSM's "name" tag often combines both languages into one
-    string -- so we try every segment as a candidate, not just one.
+    (German - Italian, e.g. "Meran - Merano"
+    note the language order is NOT consistent, some are Italian-first like "Bolzano - Bozen") 
+    and in Friuli-Venezia Giulia (Italian / Friulian or Slovenian, e.g. "Udine / Udin"). 
+    ISTAT's official records use only the plain Italian name, but OSM's "name" tag often combines both languages into one string
+    so we try every segment as a candidate, not just one.
     """
     candidates = [name]
     for sep in [" - ", "-", " / ", "/"]:
@@ -160,21 +151,20 @@ def _generate_name_candidates(name):
 
 def attach_population(comuni_gdf):
     """
-    Adds 'population' and 'province' columns to the comuni GeoDataFrame by
-    matching comune names against the ISTAT table. Tries multiple name
-    candidates per comune (see _generate_name_candidates) to handle
-    bilingual OSM names that don't match ISTAT's plain-Italian records
-    directly. Logs any comuni that still fail to match after all
-    candidates are tried.
+    Adds 'population' and 'province' columns to the town GeoDataFrame by matching comune names against the ISTAT table. 
+    Tries multiple name candidates per comune (see _generate_name_candidates)
+    to handle bilingual OSM names that don't match ISTAT's plain-Italian records directly. 
+    Logs any town that still fail to match after all candidates are tried.
     """
     pop_df = load_population_table()
 
-    # Guard against duplicate normalized names in the combined ISTAT data
-    # (e.g. two rows that only differ by accents/punctuation once
-    # normalized) -- building a lookup dict requires unique keys, so we
-    # keep the first occurrence of each and surface exactly which names
-    # collided, in case it points to a real duplicate-row issue worth
-    # checking in the source CSVs.
+    """
+    Guard against duplicate normalized names in the combined ISTAT data
+    (e.g. two rows that only differ by accents/punctuation once normalized)
+    building a lookup dict requires unique keys,
+    so we keep the first occurrence of each and surface exactly which names collided,
+    in case it points to a real duplicate-row issue worth checking in the source CSVs.
+    """
     dup_mask = pop_df["_join_key"].duplicated(keep=False)
     if dup_mask.any():
         dup_names = pop_df.loc[dup_mask, "name"].tolist()

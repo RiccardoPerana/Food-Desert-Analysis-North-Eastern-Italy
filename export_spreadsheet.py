@@ -1,8 +1,5 @@
-"""
-export_spreadsheet.py
-----------------------
-Exports the final results list to a clean, formatted .xlsx spreadsheet.
-"""
+# Exports the final results list to a clean, formatted .xlsx spreadsheet.
+# Rows flagged for manual review (distance >= config.DISTANCE_REVIEW_THRESHOLD_KM) are highlighted in yellow.
 
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, PatternFill
@@ -15,7 +12,7 @@ def export_to_spreadsheet(results, output_path):
     ws.title = "Underserved Towns"
 
     headers = ["Town", "Province", "Population", "Distance to Nearest Supermarket (km)",
-               "Nearest Supermarket", "Infrastructure Status", "Flagged for Review"]
+               "Nearest Supermarket", "Flagged for Review"]
     ws.append(headers)
 
     header_fill = PatternFill(start_color="2F5233", end_color="2F5233", fill_type="solid")
@@ -38,7 +35,6 @@ def export_to_spreadsheet(results, output_path):
             r["population"],
             r["distance_km"],
             r["nearest_supermarket"],
-            r.get("infrastructure_status", ""),
             "YES -- double check this one" if flagged else "",
         ])
         if flagged:
@@ -51,7 +47,7 @@ def export_to_spreadsheet(results, output_path):
             [len(str(header))] + [
                 len(str(row[col_idx - 1])) for row in
                 [[r["name"], r["province"], r["population"], r["distance_km"],
-                  r["nearest_supermarket"], r.get("infrastructure_status", ""),
+                  r["nearest_supermarket"],
                   "YES -- double check this one" if r.get("flagged_for_review", False) else ""]
                  for r in sorted_results]
             ]

@@ -1,0 +1,216 @@
+PROVINCIA,CODICE COMUNE,NOME COMUNE,POPOLAZIONE TOTALE
+Gorizia,031001,Capriva del Friuli,"1,593"
+Gorizia,031002,Cormons,"7,047"
+Gorizia,031003,Doberdò del Lago,"1,317"
+Gorizia,031004,Dolegna del Collio,289
+Gorizia,031005,Farra d'Isonzo,"1,655"
+Gorizia,031006,Fogliano Redipuglia,"2,979"
+Gorizia,031007,Gorizia,"33,620"
+Gorizia,031008,Gradisca d'Isonzo,"6,413"
+Gorizia,031009,Grado,"7,532"
+Gorizia,031010,Mariano del Friuli,"1,464"
+Gorizia,031011,Medea,946
+Gorizia,031012,Monfalcone,"30,360"
+Gorizia,031013,Moraro,726
+Gorizia,031014,Mossa,"1,518"
+Gorizia,031015,Romans d'Isonzo,"3,565"
+Gorizia,031016,Ronchi dei Legionari,"11,862"
+Gorizia,031017,Sagrado,"2,157"
+Gorizia,031018,San Canzian d'Isonzo,"6,023"
+Gorizia,031019,San Floriano del Collio,735
+Gorizia,031020,San Lorenzo Isontino,"1,496"
+Gorizia,031021,San Pier d'Isonzo,"1,919"
+Gorizia,031022,Savogna d'Isonzo,"1,680"
+Gorizia,031023,Staranzano,"7,120"
+Gorizia,031024,Turriaco,"2,779"
+Gorizia,031025,Villesse,"1,632"
+Pordenone,093001,Andreis,246
+Pordenone,093002,Arba,"1,334"
+Pordenone,093004,Aviano,"8,990"
+Pordenone,093005,Azzano Decimo,"15,769"
+Pordenone,093006,Barcis,231
+Pordenone,093007,Brugnera,"9,262"
+Pordenone,093008,Budoia,"2,514"
+Pordenone,093009,Caneva,"6,195"
+Pordenone,093010,Casarsa della Delizia,"8,327"
+Pordenone,093011,Castelnovo del Friuli,825
+Pordenone,093012,Cavasso Nuovo,"1,481"
+Pordenone,093013,Chions,"4,994"
+Pordenone,093014,Cimolais,339
+Pordenone,093015,Claut,863
+Pordenone,093016,Clauzetto,382
+Pordenone,093017,Cordenons,"17,718"
+Pordenone,093018,Cordovado,"2,701"
+Pordenone,093019,Erto e Casso,360
+Pordenone,093020,Fanna,"1,464"
+Pordenone,093021,Fiume Veneto,"11,801"
+Pordenone,093022,Fontanafredda,"12,893"
+Pordenone,093024,Frisanco,588
+Pordenone,093025,Maniago,"11,498"
+Pordenone,093026,Meduno,"1,503"
+Pordenone,093027,Montereale Valcellina,"4,197"
+Pordenone,093028,Morsano al Tagliamento,"2,728"
+Pordenone,093029,Pasiano di Pordenone,"7,854"
+Pordenone,093030,Pinzano al Tagliamento,"1,493"
+Pordenone,093031,Polcenigo,"3,099"
+Pordenone,093032,Porcia,"14,958"
+Pordenone,093033,Pordenone,"52,314"
+Pordenone,093034,Prata di Pordenone,"8,364"
+Pordenone,093035,Pravisdomini,"3,507"
+Pordenone,093036,Roveredo in Piano,"5,763"
+Pordenone,093037,Sacile,"19,951"
+Pordenone,093038,San Giorgio della Richinvelda,"4,503"
+Pordenone,093039,San Martino al Tagliamento,"1,470"
+Pordenone,093040,San Quirino,"4,315"
+Pordenone,093041,San Vito al Tagliamento,"15,282"
+Pordenone,093042,Sequals,"2,204"
+Pordenone,093043,Sesto al Reghena,"6,302"
+Pordenone,093044,Spilimbergo,"11,773"
+Pordenone,093045,Tramonti di Sopra,268
+Pordenone,093046,Tramonti di Sotto,336
+Pordenone,093047,Travesio,"1,818"
+Pordenone,093049,Vito d'Asio,701
+Pordenone,093050,Vivaro,"1,346"
+Pordenone,093051,Zoppola,"8,368"
+Pordenone,093052,Vajont,"1,617"
+Pordenone,093053,Valvasone Arzene,"3,933"
+Trieste,032001,Duino Aurisina,"8,217"
+Trieste,032002,Monrupino,840
+Trieste,032003,Muggia,"12,708"
+Trieste,032004,San Dorligo della Valle,"5,671"
+Trieste,032005,Sgonico,"1,968"
+Trieste,032006,Trieste,"198,388"
+Udine,030001,Aiello del Friuli,"2,088"
+Udine,030002,Amaro,837
+Udine,030003,Ampezzo,891
+Udine,030004,Aquileia,"3,124"
+Udine,030005,Arta Terme,"2,000"
+Udine,030006,Artegna,"2,902"
+Udine,030007,Attimis,"1,653"
+Udine,030008,Bagnaria Arsa,"3,448"
+Udine,030009,Basiliano,"5,146"
+Udine,030010,Bertiolo,"2,334"
+Udine,030011,Bicinicco,"1,742"
+Udine,030012,Bordano,697
+Udine,030013,Buja,"6,353"
+Udine,030014,Buttrio,"3,930"
+Udine,030015,Camino al Tagliamento,"1,521"
+Udine,030016,Campoformido,"7,832"
+Udine,030018,Carlino,"2,606"
+Udine,030019,Cassacco,"2,775"
+Udine,030020,Castions di Strada,"3,638"
+Udine,030021,Cavazzo Carnico,955
+Udine,030022,Cercivento,618
+Udine,030023,Cervignano del Friuli,"13,784"
+Udine,030024,Chiopris-Viscone,703
+Udine,030025,Chiusaforte,584
+Udine,030026,Cividale del Friuli,"10,755"
+Udine,030027,Codroipo,"15,802"
+Udine,030028,Colloredo di Monte Albano,"2,210"
+Udine,030029,Comeglians,422
+Udine,030030,Corno di Rosazzo,"3,108"
+Udine,030031,Coseano,"1,996"
+Udine,030032,Dignano,"2,242"
+Udine,030033,Dogna,146
+Udine,030034,Drenchia,89
+Udine,030035,Enemonzo,"1,240"
+Udine,030036,Faedis,"2,765"
+Udine,030037,Fagagna,"6,048"
+Udine,030039,Flaibano,"1,096"
+Udine,030040,Forni Avoltri,499
+Udine,030041,Forni di Sopra,907
+Udine,030042,Forni di Sotto,520
+Udine,030043,Gemona del Friuli,"10,439"
+Udine,030044,Gonars,"4,571"
+Udine,030045,Grimacco,302
+Udine,030046,Latisana,"13,219"
+Udine,030047,Lauco,639
+Udine,030048,Lestizza,"3,562"
+Udine,030049,Lignano Sabbiadoro,"6,888"
+Udine,030051,Lusevera,613
+Udine,030052,Magnano in Riviera,"2,235"
+Udine,030053,Majano,"5,714"
+Udine,030054,Malborghetto Valbruna,892
+Udine,030055,Manzano,"6,322"
+Udine,030056,Marano Lagunare,"1,674"
+Udine,030057,Martignacco,"6,854"
+Udine,030058,Mereto di Tomba,"2,518"
+Udine,030059,Moggio Udinese,"1,601"
+Udine,030060,Moimacco,"1,579"
+Udine,030061,Montenars,498
+Udine,030062,Mortegliano,"4,808"
+Udine,030063,Moruzzo,"2,400"
+Udine,030064,Muzzana del Turgnano,"2,320"
+Udine,030065,Nimis,"2,631"
+Udine,030066,Osoppo,"2,789"
+Udine,030067,Ovaro,"1,708"
+Udine,030068,Pagnacco,"5,092"
+Udine,030069,Palazzolo dello Stella,"2,864"
+Udine,030070,Palmanova,"5,311"
+Udine,030071,Paluzza,"1,923"
+Udine,030072,Pasian di Prato,"9,251"
+Udine,030073,Paularo,"2,298"
+Udine,030074,Pavia di Udine,"5,476"
+Udine,030075,Pocenia,"2,312"
+Udine,030076,Pontebba,"1,291"
+Udine,030077,Porpetto,"2,453"
+Udine,030078,Povoletto,"5,408"
+Udine,030079,Pozzuolo del Friuli,"6,846"
+Udine,030080,Pradamano,"3,510"
+Udine,030081,Prato Carnico,809
+Udine,030082,Precenicco,"1,451"
+Udine,030083,Premariacco,"3,944"
+Udine,030084,Preone,243
+Udine,030085,Prepotto,698
+Udine,030086,Pulfero,836
+Udine,030087,Ragogna,"2,815"
+Udine,030088,Ravascletto,505
+Udine,030089,Raveo,443
+Udine,030090,Reana del Rojale,"4,692"
+Udine,030091,Remanzacco,"5,955"
+Udine,030092,Resia,919
+Udine,030093,Resiutta,269
+Udine,030094,Rigolato,367
+Udine,030095,Rive d'Arcano,"2,388"
+Udine,030097,Ronchis,"1,951"
+Udine,030098,Ruda,"2,799"
+Udine,030099,San Daniele del Friuli,"7,935"
+Udine,030100,San Giorgio di Nogaro,"7,314"
+Udine,030101,San Giovanni al Natisone,"6,012"
+Udine,030102,San Leonardo,"1,025"
+Udine,030103,San Pietro al Natisone,"2,058"
+Udine,030104,Santa Maria la Longa,"2,296"
+Udine,030105,San Vito al Torre,"1,222"
+Udine,030106,San Vito di Fagagna,"1,681"
+Udine,030107,Sauris,390
+Udine,030108,Savogna,353
+Udine,030109,Sedegliano,"3,693"
+Udine,030110,Socchieve,848
+Udine,030111,Stregna,284
+Udine,030112,Sutrio,"1,197"
+Udine,030113,Taipana,547
+Udine,030114,Talmassons,"3,810"
+Udine,030116,Tarcento,"8,850"
+Udine,030117,Tarvisio,"3,903"
+Udine,030118,Tavagnacco,"14,629"
+Udine,030120,Terzo d'Aquileia,"2,686"
+Udine,030121,Tolmezzo,"9,702"
+Udine,030122,Torreano,"2,015"
+Udine,030123,Torviscosa,"2,571"
+Udine,030124,Trasaghis,"2,091"
+Udine,030126,Treppo Grande,"1,717"
+Udine,030127,Tricesimo,"7,573"
+Udine,030128,Trivignano Udinese,"1,520"
+Udine,030129,Udine,"98,279"
+Udine,030130,Varmo,"2,618"
+Udine,030131,Venzone,"1,935"
+Udine,030132,Verzegnis,835
+Udine,030133,Villa Santina,"2,148"
+Udine,030135,Visco,836
+Udine,030136,Zuglio,538
+Udine,030137,Forgaria nel Friuli,"1,679"
+Udine,030138,Campolongo Tapogliano,"1,115"
+Udine,030188,Rivignano Teor,"6,273"
+Udine,030189,Sappada,"1,320"
+Udine,030190,Fiumicello Villa Vicentina,"6,263"
+Udine,030191,Treppo Ligosullo,661
