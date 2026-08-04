@@ -20,6 +20,54 @@ live web queries, so runs are fast (minutes, not hours) and don't depend
 on the availability of free public map-query servers.
 
 ---
+
+## Why?
+ 
+Italy has one of the world's oldest populations,
+and in many small towns where younger residents
+often have moved to larger cities, 
+this skew is even more pronounced.
+For a younger, mobile resident, 
+driving 5-10km for groceries is a minor inconvenience. 
+For an elderly resident, instead,
+it's a genuine barrier to getting basic goods.
+
+This project started from a concrete, small-scale observation: 
+some towns have no supermarket of their own, 
+and to get to the nearest one, at best in the next town over,
+often sidewalks, cycling lane and public transportation are missing.
+This project transforms ths observation into a data-driven method, 
+so the same question can be asked systematically
+across entire regions rather than one town at a time by hand.
+
+---
+
+## So What
+
+The output is a starting point for identifying 
+where this problem is most severe, at a scale no one check manually. 
+Across the three regions this project covers, it finds
+roughly 116 comuni matching all criteria.
+Concretely, this analysis could support inform decision making:
+- **Local planning**: prioritizing improved public transport route 
+  would have the most  impact on genuine daily-life access, 
+  not just population size alone
+- **Elder-care and social service outreach**: identifying comuni where
+  aging residents are most likely to depend on others, or on a car they
+  may no longer be able to drive, for access to basic goods.
+- **Community organizations and researchers** studying rural aging and
+  food access get a reusable, sourced, mappable dataset instead of having
+  to build one from scratch.
+- **The methodology itself is reusable** — the same pipeline can be
+  re-pointed at any other Italian region (or, with more work, another
+  country entirely) by changing a handful of settings in `config.py` and
+  downloading a different regional map extract. The three-region analysis
+  here is a starting point, not a ceiling.
+- **Supermarket Demand Planners**: could have insight on where their home
+  delivery services might be most needed, or find areas where supply is 
+  limited. 
+  
+---
  
 ## Prerequisites
  
@@ -193,13 +241,17 @@ live query for a second opinion.
 ---
  
 ## Known Limitations
- 
 - **Cross-region border towns**: the local map file covers exactly
   Veneto + Trentino-Alto Adige + Friuli-Venezia Giulia. A town right on
   the outer edge whose true nearest supermarket sits just across that
   outer border (into Lombardy, Emilia-Romagna, Austria, or Slovenia)
   won't see it. This doesn't affect internal borders between the three
   target regions themselves, which are fully covered.
+- **Extra-urban Public Transport** is not included in the map, due to 
+  limitations witht he Open Street Map database.
+  Including extra-urban public transport routes would require collecting 
+  and stiching together live data from each region's public transport
+  operator. 
 - **Data snapshot age**: the local map file is a snapshot from whenever
   it was downloaded. OpenStreetMap data changes constantly as volunteers
   edit it, so very recently opened/closed supermarkets may not be
