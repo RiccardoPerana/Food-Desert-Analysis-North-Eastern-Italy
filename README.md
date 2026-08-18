@@ -1,6 +1,6 @@
 # Food Desert Analysis — Northeastern Italy
 
-**Which towns have no grocery shop of their own, and no reasonable way to walk to one?**
+**Which towns have limited access to grocery stores?**
 
 This pipeline answers that question systematically across Veneto, Trentino-Alto
 Adige and Friuli-Venezia Giulia — 1,054 municipalities — using real routed
@@ -20,6 +20,28 @@ by the population most affected by it.
 
 ---
 
+## Why this matters
+
+Italy has one of the world's oldest populations, and the skew is sharpest in
+small towns that younger residents have left.
+
+For a mobile adult with a car, a 6 km trip for groceries is an errand. For
+someone in their eighties who no longer drives, it is the difference between
+independence and dependence — on a relative, a neighbour, or nothing.
+
+This project began from a small local observation: some towns have no shop, the
+nearest one is in the next town over, and the road between them often has no
+sidewalk, no cycle lane and no useful bus. That is easy to notice about one
+town. It is impossible to check by hand across a thousand.
+
+**Distance alone is not the finding.** A commuter town of 4,000 with a median
+age of 38 and a mountain village of 400 where a third of residents are over 75
+are not the same problem. Every result here is weighted by the number of
+residents aged 65 or over, so the ranking reflects where the burden is
+*largest*, not merely where it is most extreme.
+
+---
+
 ## What it found
 
 | | |
@@ -36,27 +58,6 @@ twenty-four pensioners for every child under fifteen.
 
 ---
 
-## Why this matters
-
-Italy has one of the world's oldest populations, and the skew is sharpest in
-small towns that younger residents have left.
-
-For a mobile adult with a car, a 6 km trip for groceries is an errand. For
-someone in their eighties who no longer drives, it is the difference between
-independence and dependence — on a relative, a neighbour, or nothing.
-
-This project began from a small local observation: some towns have no shop, the
-nearest one is in the next town over, and the road between them often has no
-pavement, no cycle lane and no useful bus. That is easy to notice about one
-town. It is impossible to check by hand across a thousand.
-
-**Distance alone is not the finding.** A commuter town of 4,000 with a median
-age of 38 and a mountain village of 400 where a third of residents are over 75
-are not the same problem. Every result here is weighted by the number of
-residents aged 65 or over, so the ranking reflects where the burden is
-*largest*, not merely where it is most extreme.
-
----
 
 ## Methodology
 
