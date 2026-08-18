@@ -1,10 +1,37 @@
-osmnx>=1.9.0
-overpy>=0.7
-geopandas>=0.14.0
-shapely>=2.0.0
-pandas>=2.0.0
-requests>=2.31.0
-openpyxl>=3.1.0
-polyline>=2.0.0
-tqdm>=4.66.0
-osmium>=3.7.0
+# ---------------------------------------------------------------------------
+# Food Desert Analysis Pipeline -- dependencies
+#
+# Upper bounds are deliberate where a library has shipped breaking API changes
+# at a major version. They are NOT applied blindly: pinning below a version
+# that has prebuilt wheels for your Python forces pip to compile from source,
+# which needs CMake and a C++ toolchain. See the osmium note below.
+# ---------------------------------------------------------------------------
+
+# --- Core geospatial stack ---
+geopandas>=0.14,<2.0
+shapely>=2.0,<3.0          # 2.x REQUIRED: sindex.nearest() and vectorised ops
+pandas>=2.0,<3.0
+
+# --- Reading the local .osm.pbf extract ---
+# NO upper bound, deliberately. pyosmium 4.x reworked the library around
+# iterative processing and filters, but SimpleHandler and apply_file() are
+# still supported -- which is the entire API this project uses. Capping at
+# <4.0 pins you to 3.7.0, which predates Python 3.13 and 3.14 and therefore
+# has no prebuilt wheel for them, forcing a source build that requires CMake.
+osmium>=3.7
+
+# --- Nominatim geocoding for administrative boundaries ---
+osmnx>=1.9,<2.0
+
+# --- Overpass API client (used only by the diagnostics module) ---
+overpy>=0.7,<1.0
+
+# --- HTTP + OSRM polyline decoding ---
+requests>=2.31,<3.0
+polyline>=2.0,<3.0
+
+# --- Excel export ---
+openpyxl>=3.1,<4.0
+
+# --- Progress bars ---
+tqdm>=4.66,<5.0

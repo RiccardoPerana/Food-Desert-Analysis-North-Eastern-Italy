@@ -1,7 +1,27 @@
+# Normalise line endings in the repo, check out native on each platform.
 * text=auto
-*.py text eol=lf
-*.md text eol=lf
-*.html text eol=lf
-*.csv text eol=lf
-*.json text eol=lf
-*.txt text eol=lf
+
+# Text formats -- always LF in the repo
+*.py    text eol=lf
+*.md    text eol=lf
+*.html  text eol=lf
+*.css   text eol=lf
+*.js    text eol=lf
+*.json  text eol=lf
+*.csv   text eol=lf
+*.txt   text eol=lf
+*.yml   text eol=lf
+*.geojson text eol=lf
+
+# Binary -- never touch line endings, never attempt a textual diff.
+# Without these, `text=auto` relies on heuristics; being explicit removes
+# any chance of a .gpkg or .xlsx being corrupted on checkout.
+*.pbf   binary
+*.osrm  binary
+*.gpkg  binary
+*.xlsx  binary
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.webp  binary
+*.gif   binary

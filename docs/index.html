@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Food Desert Map — Comuni Analysis</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+  :root {
+    --ink: #1c2a24;
+    --paper: #f6f4ee;
+    --accent: #b5502f;
+    --line: #d8d3c5;
+    --panel: #ffffff;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; font-family: "Segoe UI", system-ui, sans-serif; color: var(--ink); }
+  #map { position: absolute; top: 0; left: 0; right: 0; bottom: 0; }
+
+  #controls {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    z-index: 1000;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 14px 16px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.12);
+    min-width: 220px;
+  }
+  #controls h3 {
+    margin: 0 0 10px 0;
+    font-size: 14px;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: var(--ink);
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 8px;
+  }
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    font-size: 13px;
+  }
+  .toggle-btn {
+    border: 1px solid var(--line);
+    background: var(--paper);
+    border-radius: 6px;
+    padding: 5px 10px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.15s ease;
+  }
+  .toggle-btn.active {
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
+  }
+  #status {
+    position: absolute;
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1000;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-left: 4px solid var(--accent);
+    border-radius: 8px;
+    padding: 10px 16px;
+    font-size: 13px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.12);
+    max-width: 420px;
+  }
+  #status.hidden { display: none; }
+  .popup-title { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+  .popup-row { font-size: 13px; margin: 2px 0; }
+  .popup-row span { color: #6b6558; }
+</style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<div id="status">Loading map data&hellip;</div>
+
+<div id="controls">
+  <h3>Layers</h3>
+  <div class="toggle-row">
+    <span>Public transport</span>
+    <button id="btn-transit" class="toggle-btn">Show</button>
+  </div>
+  <div class="toggle-row">
+    <span>Cycling lanes</span>
+    <button id="btn-cycling" class="toggle-btn">Show</button>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+// ---------------------------------------------------------------------
+// DATA SOURCES
+// ---------------------------------------------------------------------
+// Paths are relative to this file. Both `python run.py serve` and GitHub
+// Pages serve docs/ as the web root, so "data/x.geojson" resolves correctly
+// in either environment with no switching.
+//
+// The ?_= cache-buster is not cosmetic: GitHub Pages sets long cache headers,
+// so without it a visitor who has seen the map before may keep getting the
+// previous data for hours after `run.py publish`.
+const CACHE_BUST = "?_=" + Date.now();
+const TOWNS_GEOJSON_URL   = "data/towns.geojson" + CACHE_BUST;
+const ROUTES_GEOJSON_URL  = "data/routes.geojson" + CACHE_BUST;
+const CYCLING_GEOJSON_URL = "data/cycling_lanes.geojson" + CACHE_BUST;
+const TRANSIT_GEOJSON_URL = "data/public_transport.geojson" + CACHE_BUST;
+
+// ---------------------------------------------------------------------
+// MAP INITIALIZATION
+// ---------------------------------------------------------------------
+// the user can't pan the map outside this area.
+const NE_ITALY_BOUNDS = L.latLngBounds(
+  [44.3, 9.8],   // southwest corner
+  [47.3, 14.0]   // northeast corner
+);
+
+const map = L.map('map', {
+  zoomControl: true,
+  minZoom: 8,
+  maxBounds: NE_ITALY_BOUNDS,
+  maxBoundsViscosity: 1.0
+}).setView([45.4064, 11.8768], 10); // Padova province default
+
+L.tileLayer('https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', {
+  maxZoom: 18,
+  maxNativeZoom: 18,
+  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors '
+             + '&middot; tiles by <a href="https://www.hotosm.org/">HOT</a> '
+             + '&middot; population: <a href="https://www.istat.it">ISTAT</a> '
+             + '&middot; routing: <a href="http://project-osrm.org/">OSRM</a>'
+}).addTo(map);
+
+// Layer groups -- kept separate so each button toggles independently
+const transitLayer = L.layerGroup();
+const cyclingLayer = L.layerGroup();
+const townsLayer = L.layerGroup().addTo(map);
+
+// Cycling lanes turn into blobs at low zoom levels, so we don't render the layer below this zoom level.
+const CYCLING_MIN_ZOOM = 14;
+let cyclingEnabled = false;
+
+function updateCyclingVisibility() {
+  const shouldShow = cyclingEnabled && map.getZoom() >= CYCLING_MIN_ZOOM;
+  const isCurrentlyShown = map.hasLayer(cyclingLayer);
+
+  if (shouldShow && !isCurrentlyShown) {
+    cyclingLayer.addTo(map);
+  } else if (!shouldShow && isCurrentlyShown) {
+    map.removeLayer(cyclingLayer);
+  }
+
+  // IMPORTANT: cycling lanes need to render ON TOP of a selected town's
+  // route line, so it's visually obvious by eye whether a cycling lane
+  // runs along that specific route.
+  if (map.hasLayer(cyclingLayer)) {
+    cyclingLayer.eachLayer(l => l.bringToFront && l.bringToFront());
+  }
+
+  if (cyclingEnabled && map.getZoom() < CYCLING_MIN_ZOOM) {
+    btnCycling.textContent = "Zoom to see";
+  } else if (cyclingEnabled) {
+    btnCycling.textContent = "Hide";
+  } else {
+    btnCycling.textContent = "Show";
+  }
+}
+
+map.on('zoomend', updateCyclingVisibility);
+
+// Public transport lines are not rendered at lower zoom levels, like cycling lanes
+const TRANSIT_MIN_ZOOM = 10;
+let transitEnabled = false;
+
+function updateTransitVisibility() {
+  const shouldShow = transitEnabled && map.getZoom() >= TRANSIT_MIN_ZOOM;
+  const isCurrentlyShown = map.hasLayer(transitLayer);
+
+  if (shouldShow && !isCurrentlyShown) {
+    transitLayer.addTo(map);
+  } else if (!shouldShow && isCurrentlyShown) {
+    map.removeLayer(transitLayer);
+  }
+
+  if (transitEnabled && map.getZoom() < TRANSIT_MIN_ZOOM) {
+    btnTransit.textContent = "Zoom to see";
+  } else if (transitEnabled) {
+    btnTransit.textContent = "Hide";
+  } else {
+    btnTransit.textContent = "Show";
+  }
+}
+
+map.on('zoomend', updateTransitVisibility);
+
+let routesIndex = {};
+
+// A visible status banner. Previously load failures went only to the browser
+// console, so a visitor hitting an empty or missing data folder just saw a
+// blank map with no indication anything had gone wrong.
+const statusEl = document.getElementById('status');
+function setStatus(message, isError) {
+  if (!message) { statusEl.classList.add('hidden'); return; }
+  statusEl.classList.remove('hidden');
+  statusEl.textContent = message;
+  statusEl.style.borderLeftColor = isError ? "#b5502f" : "#2f7d4f";
+}
+
+function loadJSON(url, label) {
+  return fetch(url)
+    .then(r => {
+      if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+      return r.json();
+    })
+    .catch(err => {
+      console.error(`Failed to load ${label}:`, err);
+      setStatus(`Could not load ${label}. If you are running this locally, `
+              + `check that "python run.py publish" has been run.`, true);
+      return null;
+    });
+}
+let selectedRouteLayer = null;
+let selectedMarker = null;
+
+const COLOR_TOWN = "#b5502f";
+const COLOR_SELECTED = "#e8b84b";
+
+// ---------------------------------------------------------------------
+// LOAD TOWNS
+// ---------------------------------------------------------------------
+loadJSON(TOWNS_GEOJSON_URL, "towns.geojson")
+  .then(data => {
+    if (!data) return;
+    if (!data.features.length) {
+      setStatus("No towns in the published dataset.", true);
+      return;
+    }
+    setStatus(`${data.features.length} underserved comuni — click a marker for details.`);
+    data.features.forEach(feature => {
+      const [lon, lat] = feature.geometry.coordinates;
+      const props = feature.properties;
+
+      const marker = L.circleMarker([lat, lon], {
+        radius: 9,
+        fillColor: COLOR_TOWN,
+        color: "#5c4326",
+        weight: 2,
+        fillOpacity: 0.9
+      });
+
+      marker.on('click', () => selectTown(feature, marker));
+      marker.addTo(townsLayer);
+    });
+  });
+
+// ---------------------------------------------------------------------
+// LOAD PER-TOWN ROUTES
+// ---------------------------------------------------------------------
+loadJSON(ROUTES_GEOJSON_URL, "routes.geojson")
+  .then(data => {
+    if (!data) return;
+    data.features.forEach(f => {
+      routesIndex[f.properties.town_name] = f;
+    });
+  });
+
+// ---------------------------------------------------------------------
+// LOAD CYCLING LANES (toggleable overlay, off by default)
+// ---------------------------------------------------------------------
+loadJSON(CYCLING_GEOJSON_URL, "cycling_lanes.geojson")
+  .then(data => {
+    if (!data) return;
+    L.geoJSON(data, {
+      style: { color: "#2f7d4f", weight: 1.5, opacity: 0.75, dashArray: "4 3" }
+    }).addTo(cyclingLayer);
+  });
+
+// ---------------------------------------------------------------------
+// LOAD PUBLIC TRANSPORT ROUTES (toggleable overlay, off by default)
+// ---------------------------------------------------------------------
+loadJSON(TRANSIT_GEOJSON_URL, "public_transport.geojson")
+  .then(data => {
+    if (!data) return;
+    L.geoJSON(data, {
+      style: { color: "#2f5f9e", weight: 2, opacity: 0.6 }
+    }).addTo(transitLayer);
+  });
+
+// ---------------------------------------------------------------------
+// TOWN SELECTION: popup + route highlight
+// ---------------------------------------------------------------------
+function selectTown(feature, marker) {
+  const props = feature.properties;
+
+  if (selectedRouteLayer) {
+    map.removeLayer(selectedRouteLayer);
+    selectedRouteLayer = null;
+  }
+  if (selectedMarker) {
+    selectedMarker.setStyle({ fillColor: COLOR_TOWN, radius: 9 });
+  }
+
+  marker.setStyle({ fillColor: COLOR_SELECTED, radius: 12 });
+  selectedMarker = marker;
+
+  const routeFeature = routesIndex[props.name];
+  if (routeFeature) {
+    selectedRouteLayer = L.geoJSON(routeFeature, {
+      style: { color: COLOR_SELECTED, weight: 5, opacity: 0.95 }
+    }).addTo(map);
+  }
+
+  // Re-assert cycling lanes on top of the just-drawn route, otherwise the newly-added route would sit above the cycling layer
+  if (map.hasLayer(cyclingLayer)) {
+    cyclingLayer.eachLayer(l => l.bringToFront && l.bringToFront());
+  }
+
+  const popupHtml = `
+    <div class="popup-title">${props.name}</div>
+    <div class="popup-row"><span>Province:</span> ${props.province}</div>
+    <div class="popup-row"><span>Population:</span> ${props.population ?? "N/A"}</div>
+    <div class="popup-row"><span>Distance to nearest supermarket:</span> ${props.distance_km} km</div>
+    <div class="popup-row"><span>Nearest supermarket:</span> ${props.nearest_supermarket}</div>
+  `;
+
+  marker.bindPopup(popupHtml).openPopup();
+}
+
+// ---------------------------------------------------------------------
+// LAYER TOGGLE BUTTONS
+// ---------------------------------------------------------------------
+const btnTransit = document.getElementById('btn-transit');
+const btnCycling = document.getElementById('btn-cycling');
+
+btnTransit.addEventListener('click', () => {
+  transitEnabled = !transitEnabled;
+  btnTransit.classList.toggle('active', transitEnabled);
+  updateTransitVisibility();
+});
+
+btnCycling.addEventListener('click', () => {
+  cyclingEnabled = !cyclingEnabled;
+  btnCycling.classList.toggle('active', cyclingEnabled);
+  updateCyclingVisibility();
+});
+</script>
+</body>
+</html>

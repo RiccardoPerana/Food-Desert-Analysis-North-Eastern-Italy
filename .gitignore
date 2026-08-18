@@ -1,24 +1,48 @@
-mkdir -p /home/claude/food_desert_pipeline
-cat > /home/claude/food_desert_pipeline/.gitignore << 'EOF'
-# Python environment
-venv/
-venv*/
+# ---------------------------------------------------------------------------
+# Python
+# ---------------------------------------------------------------------------
 __pycache__/
-*.pyc
+*.py[cod]
+*.egg-info/
+.pytest_cache/
 
-# Large OSM data file (download separately -- see README)
+# Virtual environments. NOTE: venv writes its own .gitignore containing a
+# single "*" INSIDE the venv folder. If that ever lands at the repo root it
+# silently ignores the entire project -- if `git status` looks suspiciously
+# empty, check for it.
+venv/
+.venv/
+env/
+
+# ---------------------------------------------------------------------------
+# Large inputs -- reproducible from the README, never committed
+# ---------------------------------------------------------------------------
+data/osm/
 *.osm.pbf
+*.osrm
+*.osrm.*
 
-# Generated caches (regenerated automatically by the scripts)
-data/*.gpkg
-data/*checkpoint*
+# Regenerated caches
+data/cache/
 
-# Generated outputs (everyone regenerates their own)
+# ---------------------------------------------------------------------------
+# Working outputs
+# ---------------------------------------------------------------------------
+# output/ holds working artifacts. Publishing to the live demo is an explicit
+# step (`python run.py publish`) that copies the GeoJSON into docs/data/,
+# which IS committed. This split means a half-finished run can never become
+# the live demo by accident.
 output/
 
-# OS/editor clutter
+# The published spreadsheet is committed by hand as a sample result:
+!docs/food_desert_towns.xlsx
+
+# ---------------------------------------------------------------------------
+# OS / editor noise
+# ---------------------------------------------------------------------------
 .DS_Store
 Thumbs.db
+desktop.ini
+.idea/
 .vscode/
-EOF
-cat /home/claude/food_desert_pipeline/.gitignore
+*.swp
