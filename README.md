@@ -15,7 +15,7 @@ by the population most affected by it.
        width="900">
 </p>
 <p align="center">
-  <em>Every town with no grocery shop and no walk under 3&nbsp;km to one.</em>
+  <em>Every town with no grocery shop in a 3&nbsp;km radius.</em>
 </p>
 
 ---
