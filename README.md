@@ -9,7 +9,14 @@ by the population most affected by it.
 
 **[→ Explore the interactive map](https://riccardoperana.github.io/Food-Desert-Analysis-North-Eastern-Italy/)**
 
-<!-- SCREENSHOT 1: the map, zoomed to show the full three-region spread of markers -->
+<p align="center">
+  <img src="screenshots/01-map-overview.png"
+       alt="Interactive map showing 101 underserved towns across Veneto, Trentino-Alto Adige and Friuli-Venezia Giulia"
+       width="900">
+</p>
+<p align="center">
+  <em>Every town with no grocery shop and no walk under 3&nbsp;km to one.</em>
+</p>
 
 ---
 
@@ -225,9 +232,26 @@ cannot silently become the live demo.
 - `output/unroutable_towns.json` — towns with no walkable route to any candidate
 - `docs/` — the published interactive map
 
-<!-- SCREENSHOT 2: spreadsheet output, showing the vulnerability columns -->
+<p align="center">
+  <img src="screenshots/02-town-detail.png"
+       alt="A single town selected, showing its walking route to the nearest supermarket with the cycle-lane layer enabled"
+       width="900">
+</p>
+<p align="center">
+  <em>Selecting a town draws its actual pedestrian route. With the cycle-lane
+  layer on, you can see directly whether any safe infrastructure follows it —
+  here, none does.</em>
+</p>
 
-<!-- SCREENSHOT 3: map zoomed into one town, popup open, cycle-lane layer on -->
+<p align="center">
+  <img src="screenshots/03-spreadsheet.png"
+       alt="Spreadsheet output ranked by vulnerability score, with population, residents aged 65 and over, ageing index and routed distance"
+       width="900">
+</p>
+<p align="center">
+  <em>Results ranked by vulnerability — residents aged 65+ multiplied by
+  distance beyond the threshold. Amber rows are flagged for manual review.</em>
+</p>
 
 ---
 
