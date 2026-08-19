@@ -1,5 +1,10 @@
 # Food Desert Analysis — Northeastern Italy
 
+[![Live demo](https://img.shields.io/badge/live%20demo-open%20the%20map-b5502f?style=flat-square)](https://riccardoperana.github.io/Food-Desert-Analysis-North-Eastern-Italy/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-1c2a24?style=flat-square)](LICENSE)
+[![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-1c2a24?style=flat-square)](https://www.python.org/)
+[![Data: OpenStreetMap + ISTAT](https://img.shields.io/badge/data-OpenStreetMap%20%2B%20ISTAT-6b6558?style=flat-square)](#data-sources)
+
 **Which towns have limited access to grocery stores?**
 
 This pipeline answers that question systematically across Veneto, Trentino-Alto
