@@ -59,9 +59,15 @@
     color: white;
     border-color: var(--accent);
   }
+  /* The status banner sits at the BOTTOM, not the top.
+     At the top it collided with the layer controls on narrow screens --
+     the controls are anchored top-right and the banner was centred, so
+     below roughly 700px wide they overlapped and the banner won.
+     Bottom-centre is clear of the controls at every width, and the
+     bottom offset keeps it above Leaflet's attribution line. */
   #status {
     position: absolute;
-    top: 16px;
+    bottom: 34px;
     left: 50%;
     transform: translateX(-50%);
     z-index: 1000;
@@ -71,10 +77,35 @@
     border-radius: 8px;
     padding: 10px 16px;
     font-size: 13px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.12);
-    max-width: 420px;
+    line-height: 1.4;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.14);
+    max-width: min(420px, calc(100vw - 32px));
+    text-align: center;
+    /* Purely informational, so it should never swallow a map drag or a
+       click on a marker underneath it. */
+    pointer-events: none;
+    transition: opacity 0.4s ease;
   }
   #status.hidden { display: none; }
+  #status.fading { opacity: 0; }
+
+  /* Narrow screens: the attribution wraps to two lines, so lift the
+     banner further, and let the controls shrink rather than crowd it. */
+  @media (max-width: 640px) {
+    #status {
+      bottom: 46px;
+      font-size: 12px;
+      padding: 9px 13px;
+    }
+    #controls {
+      top: 10px;
+      right: 10px;
+      padding: 10px 12px;
+      min-width: 0;
+    }
+    #controls h3 { font-size: 12px; margin-bottom: 8px; }
+    .toggle-row { font-size: 12px; gap: 10px; }
+  }
   .popup-title { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
   .popup-row { font-size: 13px; margin: 2px 0; }
   .popup-row span { color: #6b6558; }
@@ -209,11 +240,29 @@ let routesIndex = {};
 // console, so a visitor hitting an empty or missing data folder just saw a
 // blank map with no indication anything had gone wrong.
 const statusEl = document.getElementById('status');
+let statusTimer = null;
+
+// Success messages are useful on arrival and clutter thereafter, so they
+// fade out on their own. Errors do NOT -- if the data failed to load, the
+// visitor needs that on screen for as long as the problem exists.
+const STATUS_AUTO_HIDE_MS = 9000;
+
 function setStatus(message, isError) {
+  clearTimeout(statusTimer);
+  statusEl.classList.remove('fading');
+
   if (!message) { statusEl.classList.add('hidden'); return; }
+
   statusEl.classList.remove('hidden');
   statusEl.textContent = message;
   statusEl.style.borderLeftColor = isError ? "#b5502f" : "#2f7d4f";
+
+  if (!isError) {
+    statusTimer = setTimeout(() => {
+      statusEl.classList.add('fading');
+      setTimeout(() => statusEl.classList.add('hidden'), 400);
+    }, STATUS_AUTO_HIDE_MS);
+  }
 }
 
 function loadJSON(url, label) {
@@ -301,6 +350,7 @@ loadJSON(TRANSIT_GEOJSON_URL, "public_transport.geojson")
 // ---------------------------------------------------------------------
 function selectTown(feature, marker) {
   const props = feature.properties;
+  setStatus(null);
 
   if (selectedRouteLayer) {
     map.removeLayer(selectedRouteLayer);
