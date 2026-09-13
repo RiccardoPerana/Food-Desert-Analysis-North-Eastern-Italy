@@ -12,7 +12,7 @@ Adige and Friuli-Venezia Giulia — 1,054 municipalities — using real routed
 walking distances rather than straight-line proximity, and weighting the result
 by the population most affected by it.
 
-**[→ Explore the interactive map](https://riccardoperana.github.io/Food-Desert-Analysis-North-Eastern-Italy/)**
+**[→ **EXPLORE THE INTERACTIVE MAP**](https://riccardoperana.github.io/Food-Desert-Analysis-North-Eastern-Italy/)**
 
 <p align="center">
   <img src="screenshots/01-map-overview.png"
