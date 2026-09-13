@@ -47,22 +47,6 @@ residents aged 65 or over, so the ranking reflects where the burden is
 
 ---
 
-## What it found
-
-| | |
-|---|---|
-| Towns analysed | **1,054** |
-| Towns with no shop and a walk of over 3 km | **104** |
-| Residents living in them | **207,126** |
-| Of whom aged 65 or over | **52,708 (25.4%)** |
-
-The most affected town is **Illasi** (Verona): 1,282 residents aged 65+, with a
-5.7 km walk to the nearest supermarket. The starkest is **Drenchia** (Udine) —
-89 residents, **53.9% of them over 65**, with an ageing index of 2,400. That is
-twenty-four pensioners for every child under fifteen.
-
----
-
 
 ## Methodology
 
@@ -300,6 +284,22 @@ it requires.
 - **`Castegnero Nanto`** appears in OpenStreetMap as one boundary relation but
   is two distinct municipalities in ISTAT records, so it is excluded. An
   upstream data issue.
+
+---
+
+## What it found
+
+<p align="center">
+  <img src="screenshots/results-summary.png"
+       alt="Summary of output data from the analysis"
+       width="900">
+</p>
+<p align="center">
+
+The most affected town is **Illasi** (Verona): 1,282 residents aged 65+, with a
+5.7 km walk to the nearest supermarket. The starkest is **Drenchia** (Udine) —
+89 residents, **53.9% of them over 65**, with an ageing index of 2,400. That is
+twenty-four pensioners for every child under fifteen.
 
 ---
 
